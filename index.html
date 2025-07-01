@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AB CODE EDITOR</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="main-header">
+
+        <h1>AB CODE EDITOR</h1>
+        <h2>Press TAB to accept suggestions and ESC to hide suggestions</h2>
+        <div class="dropdown-content">
+            <button class="dropbtn">Select Language</button>
+            <div class="dropdown-menu">
+                <a href="#" id="c">C</a>
+                <a href="#" id="cpp">C++</a>
+                <a href="#" id="java">Java</a>
+                <a href="#" id="python">Python</a>
+                <a href="#" id="html">HTML</a>
+                <a href="#" id="css">CSS</a>
+                <a href="#" id="javascript">JavaScript</a>
+            </div>
+        </div>
+    </div>
+
+    <textarea id="codeEditor" rows="20" cols="100" placeholder="Write your code here..."></textarea>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
