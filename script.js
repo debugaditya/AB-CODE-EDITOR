@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
         "python": "python.txt",
         "java": "java.txt",
         "javascript": "javascript.txt",
-        "html": "html.txt",
+        "html": "html.txt", // This will trigger HTML formatting
         "css": "css.txt"
     };
 
@@ -30,6 +30,42 @@ document.addEventListener('DOMContentLoaded', () => {
         const match = line.match(/^\s*/);
         return match ? match[0].length : 0;
     };
+
+    // --- Basic HTML Indentation Function (kept as utility, not used on load) ---
+    function formatHtml(htmlString) {
+        let indentLevel = 0;
+        let formattedHtml = [];
+        const lines = htmlString.split('\n');
+        const indentStep = ' '.repeat(TAB_SIZE);
+
+        lines.forEach(line => {
+            const trimmedLine = line.trim();
+            if (trimmedLine.length === 0) {
+                formattedHtml.push(''); // Keep blank lines
+                return;
+            }
+
+            // Check for closing tags first to de-indent before adding the line
+            // Matches </tag> or <!-- closing comment -->
+            if (trimmedLine.match(/^\s*<\//) || trimmedLine.startsWith('<!--') && trimmedLine.endsWith('-->')) {
+                indentLevel = Math.max(0, indentLevel - 1);
+            }
+
+            formattedHtml.push(indentStep.repeat(indentLevel) + trimmedLine);
+
+            // Check for opening tags to indent for the next line
+            // Matches <tag> or <tag attr="value"> but not self-closing <tag/>
+            // Excludes common self-closing tags and SVG elements that don't need indentation
+            if (trimmedLine.match(/<[a-zA-Z0-9]+[^>]*[^/]>$/) &&
+                !trimmedLine.match(/<\/(?!svg|path|g|circle|rect|line|polygon|polyline|ellipse|text|image|foreignObject|use|defs|clipPath|mask|pattern|symbol|marker|view|style|script|title|desc|metadata|filter|feBlend|feColorMatrix|feComponentTransfer|feComposite|feConvolveMatrix|feDiffuseLighting|feDisplacementMap|feFlood|feGaussianBlur|feImage|feMerge|feMorphology|feOffset|feSpecularLighting|feTile|feTurbulence|linearGradient|radialGradient|stop|animate|animateMotion|animateTransform|set|mpath|altGlyph|color-profile|cursor|font|font-face|font-face-format|font-face-name|font-face-src|font-face-uri|hkern|vkern|missing-glyph|tref|altGlyphDef|altGlyphItem|glyph|glyphRef|textPath|tspan|view|a)\s*$/) &&
+                !trimmedLine.endsWith('/>')) { // Also explicitly check for /> for self-closing
+                indentLevel++;
+            }
+        });
+        return formattedHtml.join('\n');
+    }
+    // --- END Basic HTML Indentation Function ---
+
 
     // Toggle dropdown on button click
     dropBtn.addEventListener('click', () => {
@@ -56,11 +92,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 const res = await fetch(fileName);
-                const code = await res.text();
+                let code = await res.text(); // Get the raw code
+
+                // Removed: Apply HTML formatting if it's an HTML file on load
+                // if (id === 'html') {
+                //     code = formatHtml(code);
+                // }
+
                 textarea.value = code;
             } catch (err) {
                 console.error("Error loading file:", err);
                 textarea.value = `// Failed to load ${fileName}`;
+            } finally {
+                menu.style.display = 'none'; // Hide dropdown after selection
             }
         });
     });
@@ -441,7 +485,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.selectionStart = this.selectionEnd = newCursorPosition;
             return; // Exit after handling Shift+Tab
         }
-        // Handle Enter key for auto-indentation
+        // Handle Enter key for auto-indentation (general code logic)
         else if (e.key === 'Enter' || e.keyCode === 13) {
             e.preventDefault();
             console.log("Enter pressed: Auto-indenting.");
@@ -453,9 +497,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const trimmedCurrentLine = currentLine.trimEnd();
             const lastChar = trimmedCurrentLine.charAt(trimmedCurrentLine.length - 1);
 
-            if (lastChar === '{' || lastChar === '(' || lastChar === '[' || lastChar === ':') {
+            // --- NEW: HTML-specific indentation after '>' ---
+            const textBeforeCursorOnLine = currentLine.substring(0, start - (value.lastIndexOf('\n', start - 1) + 1));
+            if (lastChar === '>' && textBeforeCursorOnLine.trim().endsWith('>')) {
+                 leadingSpaces += TAB_SIZE; // Increase indent if previous line ended with '>'
+            } else if (lastChar === '{' || lastChar === '(' || lastChar === '[' || lastChar === ':') {
                 leadingSpaces += TAB_SIZE;
             }
+            // --- END NEW: HTML-specific indentation ---
 
             this.value = value.substring(0, start) + '\n' + ' '.repeat(leadingSpaces) + value.substring(end);
             this.selectionStart = this.selectionEnd = start + 1 + leadingSpaces;
@@ -474,7 +523,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const trimmedPrevLine = prevLine.trimEnd();
                 const prevLastChar = trimmedPrevLine.charAt(trimmedPrevLine.length - 1);
                 const shouldDeIndent = (currentLineLeadingSpaces > prevLineLeadingSpaces) &&
-                                       !(prevLastChar === '{' || prevLastChar === '(' || prevLastChar === '[');
+                                         !(prevLastChar === '{' || prevLastChar === '(' || prevLastChar === '[');
 
                 if (shouldDeIndent) {
                     e.preventDefault();
