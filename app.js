@@ -54,7 +54,7 @@ Your response MUST strictly follow this format:
 <The exact text that should be suggested to append to the 'Current Input'. This should be concise and directly extend the user's current line or thought. If no meaningful suggestion, leave empty.>
 ---FULLCODE---
 <The complete, updated text that would be in the input field if the SNIPPET is accepted and appended to the 'Current Input'. This is essentially 'Current Input' + 'SNIPPET'. If no meaningful suggestion, this should be the 'Current Input' itself.>
-Both full code and snippet should be formatted correctly, with proper indentation and line breaks as needed.
+Both full code and snippet should be formatted correctly, with proper indentation and line breaks as needed. If any syntax error in code, fix it.
 Here are CORRECTED examples to follow STRICTLY:
 
 Example 1:
