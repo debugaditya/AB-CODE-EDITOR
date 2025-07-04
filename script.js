@@ -13,9 +13,8 @@ document.addEventListener('DOMContentLoaded', () => {
         "css": "css.txt"
     };
 
-    const TAB_SIZE = 4; // Number of spaces for a tab
+    const TAB_SIZE = 4;
 
-    // --- Copilot/Suggestion Related Variables ---
     let currentActiveElement = null;
     let ghostSpan = null;
     let currentSnippet = "";
@@ -24,26 +23,22 @@ document.addEventListener('DOMContentLoaded', () => {
     let debounceTimer = null;
     let focusOutTimer = null;
 
-    // Helper function to get leading spaces
     const getLeadingSpaces = (line) => {
         const match = line.match(/^\s*/);
         return match ? match[0].length : 0;
     };
 
-    // Toggle dropdown on button click
     dropBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
     });
 
-    // Hide dropdown if clicked outside
     window.addEventListener('click', (e) => {
         if (!dropBtn.contains(e.target) && !menu.contains(e.target)) {
             menu.style.display = 'none';
         }
     });
 
-    // Handle language selection
     document.querySelectorAll('.dropdown-menu a').forEach(item => {
         item.addEventListener('click', async (e) => {
             e.preventDefault();
@@ -68,7 +63,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // --- Global Event Listeners for Focus ---
     document.addEventListener("focusin", handleFocusIn);
     document.addEventListener("focusout", handleFocusOut);
 
@@ -88,7 +82,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleFocusIn(event) {
         const target = event.target;
-        // console.log("FocusIn detected. Target:", target);
         if (target.tagName === "TEXTAREA" || target.getAttribute("contenteditable") === "true") {
             if (currentActiveElement && currentActiveElement !== target) {
                 hideSuggestion();
@@ -98,7 +91,6 @@ document.addEventListener('DOMContentLoaded', () => {
             onInput();
         } else {
             if (currentActiveElement) {
-                // console.log("Focus moving out of a monitored element. New target:", target);
                 if (focusOutTimer) clearTimeout(focusOutTimer);
                 focusOutTimer = setTimeout(() => {
                     if (document.activeElement !== currentActiveElement &&
@@ -112,21 +104,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleFocusOut(event) {
-        const relatedTarget = event.relatedTarget;
-        // console.log("FocusOut detected. Target:", event.target, "Related Target:", relatedTarget);
-
         if (focusOutTimer) clearTimeout(focusOutTimer);
 
         focusOutTimer = setTimeout(() => {
             const newActiveElement = document.activeElement;
-            // console.log("FocusOut timeout checking. New active element:", newActiveElement);
-
             if (newActiveElement !== currentActiveElement &&
                 newActiveElement !== ghostSpan &&
                 (newActiveElement === null ||
                 (newActiveElement.tagName !== "TEXTAREA" && newActiveElement.getAttribute("contenteditable") !== "true"))) {
                 if (currentActiveElement) {
-                    // console.log("True blur detected, clearing active element and hiding suggestion.");
                     hideSuggestion();
                     currentActiveElement = null;
                 }
@@ -146,14 +132,10 @@ document.addEventListener('DOMContentLoaded', () => {
             ghostSpan.className = 'ghost-suggestion';
             document.body.appendChild(ghostSpan);
         }
-        // console.log("Copilot listeners set up for current active element:", element);
     }
 
-    // --- Copilot/Suggestion Related Functions ---
     function showSuggestion(snippet) {
-        // console.log("Attempting to SHOW suggestion:", snippet);
         if (!currentActiveElement || !ghostSpan || !snippet) {
-            // console.log("SHOW aborted: Missing active element, ghostSpan, or no snippet. currentActiveElement:", currentActiveElement);
             hideSuggestion();
             return;
         }
@@ -161,11 +143,9 @@ document.addEventListener('DOMContentLoaded', () => {
         ghostSpan.textContent = snippet;
         ghostSpan.style.display = "block";
         positionGhostSpan();
-        // console.log("Suggestion should now be visible. GhostSpan textContent:", ghostSpan.textContent);
     }
 
     function hideSuggestion() {
-        // console.log("Attempting to HIDE suggestion.");
         if (ghostSpan) {
             ghostSpan.style.display = "none";
             ghostSpan.textContent = "";
@@ -174,94 +154,51 @@ document.addEventListener('DOMContentLoaded', () => {
         fullCode = "";
         lastPrompt = "";
         if (debounceTimer) clearTimeout(debounceTimer);
-        // console.log("Suggestion hidden.");
     }
 
-    /**
-     * Accurately positions the ghost suggestion span right at the cursor's location
-     * within the textarea.
-     */
     function positionGhostSpan() {
         if (!currentActiveElement || !ghostSpan) return;
 
         const textareaRect = currentActiveElement.getBoundingClientRect();
         const textareaStyle = window.getComputedStyle(currentActiveElement);
 
-        // Get computed styles for precise measurement
-        const paddingLeft = parseFloat(textareaStyle.paddingLeft);
         const paddingTop = parseFloat(textareaStyle.paddingTop);
-        const borderLeftWidth = parseFloat(textareaStyle.borderLeftWidth);
-        const borderTopWidth = parseFloat(textareaStyle.borderTopWidth);
+        const paddingLeft = parseFloat(textareaStyle.paddingLeft);
         const lineHeight = parseFloat(textareaStyle.lineHeight);
         const fontSize = parseFloat(textareaStyle.fontSize);
 
-        // Fallback for lineHeight if it's 'normal' or invalid
         const actualLineHeight = lineHeight > 0 && !isNaN(lineHeight) ? lineHeight : fontSize * 1.2;
 
         const cursorPosition = currentActiveElement.selectionStart;
         const textBeforeCursor = currentActiveElement.value.substring(0, cursorPosition);
+        const linesBeforeCursor = textBeforeCursor.split('\n');
+        const currentLineNumber = linesBeforeCursor.length - 1;
+        const charsOnCurrentLineBeforeCursor = linesBeforeCursor[currentLineNumber];
 
-        // Create a temporary mirror element to calculate cursor position accurately
-        const mirrorDiv = document.createElement('div');
-        document.body.appendChild(mirrorDiv);
+        const tempMeasurer = document.createElement('span');
+        tempMeasurer.style.position = 'absolute';
+        tempMeasurer.style.visibility = 'hidden';
+        tempMeasurer.style.fontFamily = textareaStyle.fontFamily;
+        tempMeasurer.style.fontSize = textareaStyle.fontSize;
+        tempMeasurer.style.lineHeight = textareaStyle.lineHeight;
+        tempMeasurer.style.whiteSpace = 'pre';
+        tempMeasurer.style.tabSize = textareaStyle.tabSize;
+        tempMeasurer.style.MozTabSize = textareaStyle.MozTabSize;
+        document.body.appendChild(tempMeasurer);
 
-        const copyStyles = [
-            'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'fontVariant',
-            'lineHeight', 'letterSpacing', 'textTransform', 'whiteSpace', 'wordWrap',
-            'paddingLeft', 'paddingRight', 'paddingTop', 'paddingBottom',
-            'borderLeftWidth', 'borderRightWidth', 'borderTopWidth', 'borderBottomWidth',
-            'boxSizing', // Important for consistent box model
-            'tabSize', // Crucial for correct tab width calculation
-            'MozTabSize' // Firefox specific
-        ];
+        tempMeasurer.textContent = charsOnCurrentLineBeforeCursor;
+        const textWidthOnCurrentLine = tempMeasurer.offsetWidth;
+        document.body.removeChild(tempMeasurer);
 
-        copyStyles.forEach(prop => {
-            mirrorDiv.style[prop] = textareaStyle[prop];
-        });
+        const left = textareaRect.left + paddingLeft + textWidthOnCurrentLine - currentActiveElement.scrollLeft + window.scrollX;
+        const top = textareaRect.top + paddingTop + (currentLineNumber * actualLineHeight) - currentActiveElement.scrollTop + window.scrollY;
 
-        // Set properties for positioning
-        mirrorDiv.style.position = 'absolute';
-        mirrorDiv.style.visibility = 'hidden';
-        mirrorDiv.style.overflow = 'auto'; // Important for scrollHeight
-        mirrorDiv.style.width = textareaRect.width + 'px'; // Match textarea width
-        mirrorDiv.style.height = 'auto'; // Let height adjust to content
-
-        // Add a zero-width space after the content to ensure we get a height for an empty last line
-        mirrorDiv.textContent = textBeforeCursor + '\u200b';
-
-        // Set the same scroll position as the textarea for accurate measurement
-        mirrorDiv.scrollTop = currentActiveElement.scrollTop;
-        mirrorDiv.scrollLeft = currentActiveElement.scrollLeft;
-
-        // Create a span to hold the text before the cursor on the *last line*
-        // This is needed to measure the horizontal position of the cursor
-        const lastLineContent = textBeforeCursor.split('\n').pop();
-        const cursorXSpan = document.createElement('span');
-        cursorXSpan.textContent = lastLineContent;
-        mirrorDiv.appendChild(cursorXSpan);
-
-        // For Y position: the total height of the text up to the cursor line
-        const cursorY = mirrorDiv.scrollHeight; // This gives the height of the content, which aligns to the bottom of the last line
-
-        // For X position: the width of the last line's content
-        const cursorX = cursorXSpan.offsetWidth;
-
-        document.body.removeChild(mirrorDiv); // Clean up the mirror div
-        const top = textareaRect.top + paddingTop + (cursorY - currentActiveElement.scrollTop) + window.scrollY - actualLineHeight;
-        const left = textareaRect.left + paddingLeft + (cursorX - currentActiveElement.scrollLeft) + window.scrollX;
-
-        // Adjust top to be exactly at the current line's base
-        // (cursorY is total height, actualLineHeight is one line's height)
-        const finalTop = top + actualLineHeight;
-
-
-        // Apply styles to ghost span
-        ghostSpan.style.top = `${finalTop}px`;
+        ghostSpan.style.top = `${top}px`;
         ghostSpan.style.left = `${left}px`;
-        ghostSpan.style.maxWidth = `${textareaRect.width - (left - textareaRect.left) - paddingLeft}px`; // Constrain width
+        ghostSpan.style.maxWidth = `${textareaRect.width - (left - textareaRect.left) - paddingLeft}px`;
         ghostSpan.style.minWidth = '0px';
         ghostSpan.style.minHeight = '0px';
-        ghostSpan.style.whiteSpace = "pre-wrap"; // Ensure line breaks are respected
+        ghostSpan.style.whiteSpace = "pre-wrap";
         ghostSpan.style.wordBreak = "break-word";
         ghostSpan.style.fontFamily = textareaStyle.fontFamily;
         ghostSpan.style.fontSize = textareaStyle.fontSize;
@@ -273,14 +210,10 @@ document.addEventListener('DOMContentLoaded', () => {
         ghostSpan.style.opacity = "0.4";
         ghostSpan.style.color = "#999";
         ghostSpan.style.zIndex = "9999";
-
-        // console.log(`Cursor pos: (${cursorX}, ${cursorY}), Final Ghost pos: (${left}, ${finalTop})`);
     }
-
 
     function onInput() {
         if (!currentActiveElement) {
-            // console.log("onInput: Aborting, currentActiveElement:", currentActiveElement);
             hideSuggestion();
             return;
         }
@@ -289,23 +222,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         debounceTimer = setTimeout(() => {
             if (!currentActiveElement) {
-                // console.log("onInput debounced: currentActiveElement is null, aborting fetch.");
                 hideSuggestion();
                 return;
             }
 
-            const fullInput = currentActiveElement.tagName === "TEXTAREA" ? currentActiveElement.value : currentActiveElement.innerText;
+            const fullInput = currentActiveElement.value;
 
             if (fullInput.trim() === "" || fullInput === lastPrompt) {
-                // console.log("Input unchanged or empty, skipping fetch.");
-                hideSuggestion(); // Hide if input is empty or hasn't changed
+                hideSuggestion();
                 return;
             }
 
             lastPrompt = fullInput;
-            // console.log("Fetching suggestion for:", fullInput);
             fetchSuggestion(fullInput);
-        }, 500); // Debounce API calls by 500ms
+        }, 500);
     }
 
     async function fetchSuggestion(prompt) {
@@ -316,13 +246,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            // Get the selected language from the dropdown button's text content
             const selectedLanguage = dropBtn.textContent;
 
             const res = await fetch("/ask", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ data: prompt, lang: selectedLanguage }) // Include language
+                body: JSON.stringify({ data: prompt, lang: selectedLanguage })
             });
 
             if (!res.ok) {
@@ -331,7 +260,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const { snippet, fullCode: full } = await res.json();
-            // console.log("Received suggestion - Snippet:", snippet, "FullCode:", full);
 
             if (!currentActiveElement) {
                 console.warn("currentActiveElement became null after fetch, discarding suggestion.");
@@ -339,17 +267,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const currentInputContent = currentActiveElement.tagName === "TEXTAREA" ? currentActiveElement.value : currentActiveElement.innerText;
+            const currentInputContent = currentActiveElement.value;
             if (currentInputContent === prompt) {
                 if (snippet && full) {
                     fullCode = full;
                     showSuggestion(snippet);
                 } else {
                     hideSuggestion();
-                    // console.log("No valid snippet or fullCode received, hiding suggestion.");
                 }
             } else {
-                // console.log("Input changed during fetch, discarding old suggestion.");
                 hideSuggestion();
             }
         } catch (err) {
@@ -365,12 +291,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!currentActiveElement) return;
 
-        // --- Tab Key Handling ---
         if (e.key === "Tab") {
             e.preventDefault();
 
             if (e.shiftKey) {
-                // console.log("Shift+Tab pressed: De-indenting.");
                 const lines = value.substring(0, start).split('\n');
                 const currentLineIndex = lines.length - 1;
                 const currentLineStart = start - lines[currentLineIndex].length;
@@ -402,11 +326,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         newCursorPosition = start - TAB_SIZE;
                     }
                 }
-                this.value = deIndentedValue + value.substring(start);
+                this.value = deIndentedValue;
                 this.selectionStart = this.selectionEnd = newCursorPosition;
 
             } else if (currentSnippet && fullCode) {
-                // console.log("Tab pressed: Accepting Copilot suggestion.");
                 const originalScrollTop = this.scrollTop;
                 const originalScrollLeft = this.scrollLeft;
 
@@ -417,9 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.scrollLeft = originalScrollLeft;
 
                 hideSuggestion();
-                // console.log("Suggestion accepted. New value length:", this.value.length);
             } else {
-                // console.log("Tab pressed: No Copilot suggestion, performing manual indentation.");
                 const indentation = ' '.repeat(TAB_SIZE);
                 this.value = value.substring(0, start) + indentation + value.substring(end);
                 this.selectionStart = this.selectionEnd = start + TAB_SIZE;
@@ -427,14 +348,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Handle ArrowRight for Copilot acceptance
         if (e.key === "ArrowRight" && currentSnippet) {
-            const currentText = currentActiveElement.tagName === "TEXTAREA" ? currentActiveElement.value : currentActiveElement.innerText;
+            const currentText = currentActiveElement.value;
             const cursorPosition = currentActiveElement.selectionStart;
 
             if (cursorPosition === currentText.length) {
                 e.preventDefault();
-                // console.log("ArrowRight pressed at end of line: Accepting Copilot suggestion.");
                 const originalScrollTop = this.scrollTop;
                 const originalScrollLeft = this.scrollLeft;
 
@@ -449,17 +368,13 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Handle Escape to hide suggestion
         if (e.key === "Escape") {
-            // console.log("Escape pressed: Hiding Copilot suggestion.");
             hideSuggestion();
             return;
         }
 
-        // --- Editor Logic for Indentation and Auto-Closing Brackets ---
         else if (e.key === 'Enter') {
             e.preventDefault();
-            // console.log("Enter pressed: Auto-indenting.");
 
             const lines = value.substring(0, start).split('\n');
             const currentLine = lines[lines.length - 1];
@@ -496,7 +411,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (shouldDeIndent) {
                     e.preventDefault();
-                    // console.log(`Typing ${e.key}: Auto-de-indenting.`);
                     const newLeadingSpaces = Math.max(0, currentLineLeadingSpaces - TAB_SIZE);
                     const deIndentedLine = ' '.repeat(newLeadingSpaces) + currentLine.trimStart();
 
@@ -508,7 +422,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         else if (e.key === '(' || e.key === '{' || e.key === '[') {
             e.preventDefault();
-            // console.log(`Typing ${e.key}: Auto-closing counterpart.`);
 
             let closingChar = '';
             if (e.key === '(') closingChar = ')';
@@ -521,7 +434,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Initial setup for the textarea since it's present on load
     if (textarea) {
         currentActiveElement = textarea;
         setupElementListeners(textarea);
