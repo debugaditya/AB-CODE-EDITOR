@@ -104,10 +104,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleFocusOut(event) {
+        const relatedTarget = event.relatedTarget;
+
         if (focusOutTimer) clearTimeout(focusOutTimer);
 
         focusOutTimer = setTimeout(() => {
             const newActiveElement = document.activeElement;
+
             if (newActiveElement !== currentActiveElement &&
                 newActiveElement !== ghostSpan &&
                 (newActiveElement === null ||
@@ -162,8 +165,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const textareaRect = currentActiveElement.getBoundingClientRect();
         const textareaStyle = window.getComputedStyle(currentActiveElement);
 
-        const paddingTop = parseFloat(textareaStyle.paddingTop);
         const paddingLeft = parseFloat(textareaStyle.paddingLeft);
+        const paddingTop = parseFloat(textareaStyle.paddingTop);
+        const borderLeftWidth = parseFloat(textareaStyle.borderLeftWidth);
+        const borderTopWidth = parseFloat(textareaStyle.borderTopWidth);
         const lineHeight = parseFloat(textareaStyle.lineHeight);
         const fontSize = parseFloat(textareaStyle.fontSize);
 
@@ -171,29 +176,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const cursorPosition = currentActiveElement.selectionStart;
         const textBeforeCursor = currentActiveElement.value.substring(0, cursorPosition);
-        const linesBeforeCursor = textBeforeCursor.split('\n');
-        const currentLineNumber = linesBeforeCursor.length - 1;
-        const charsOnCurrentLineBeforeCursor = linesBeforeCursor[currentLineNumber];
 
-        const tempMeasurer = document.createElement('span');
-        tempMeasurer.style.position = 'absolute';
-        tempMeasurer.style.visibility = 'hidden';
-        tempMeasurer.style.fontFamily = textareaStyle.fontFamily;
-        tempMeasurer.style.fontSize = textareaStyle.fontSize;
-        tempMeasurer.style.lineHeight = textareaStyle.lineHeight;
-        tempMeasurer.style.whiteSpace = 'pre';
-        tempMeasurer.style.tabSize = textareaStyle.tabSize;
-        tempMeasurer.style.MozTabSize = textareaStyle.MozTabSize;
-        document.body.appendChild(tempMeasurer);
+        const mirrorDiv = document.createElement('div');
+        document.body.appendChild(mirrorDiv);
 
-        tempMeasurer.textContent = charsOnCurrentLineBeforeCursor;
-        const textWidthOnCurrentLine = tempMeasurer.offsetWidth;
-        document.body.removeChild(tempMeasurer);
+        const copyStyles = [
+            'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'fontVariant',
+            'lineHeight', 'letterSpacing', 'textTransform', 'whiteSpace', 'wordWrap',
+            'paddingLeft', 'paddingRight', 'paddingTop', 'paddingBottom',
+            'borderLeftWidth', 'borderRightWidth', 'borderTopWidth', 'borderBottomWidth',
+            'boxSizing',
+            'tabSize',
+            'MozTabSize'
+        ];
 
-        const left = textareaRect.left + paddingLeft + textWidthOnCurrentLine - currentActiveElement.scrollLeft + window.scrollX;
-        const top = textareaRect.top + paddingTop + (currentLineNumber * actualLineHeight) - currentActiveElement.scrollTop + window.scrollY;
+        copyStyles.forEach(prop => {
+            mirrorDiv.style[prop] = textareaStyle[prop];
+        });
 
-        ghostSpan.style.top = `${top}px`;
+        mirrorDiv.style.position = 'absolute';
+        mirrorDiv.style.visibility = 'hidden';
+        mirrorDiv.style.overflow = 'auto';
+        mirrorDiv.style.width = textareaRect.width + 'px';
+        mirrorDiv.style.height = 'auto';
+
+        mirrorDiv.textContent = textBeforeCursor + '\u200b';
+
+        mirrorDiv.scrollTop = currentActiveElement.scrollTop;
+        mirrorDiv.scrollLeft = currentActiveElement.scrollLeft;
+
+        const lastLineContent = textBeforeCursor.split('\n').pop();
+        const cursorXSpan = document.createElement('span');
+        cursorXSpan.textContent = lastLineContent;
+        mirrorDiv.appendChild(cursorXSpan);
+
+        const cursorY = mirrorDiv.scrollHeight;
+
+        const cursorX = cursorXSpan.offsetWidth;
+
+        document.body.removeChild(mirrorDiv);
+        const top = textareaRect.top + paddingTop + (cursorY - currentActiveElement.scrollTop) + window.scrollY - actualLineHeight;
+        const left = textareaRect.left + paddingLeft + (cursorX - currentActiveElement.scrollLeft) + window.scrollX;
+
+        const finalTop = top + actualLineHeight;
+
+
+        ghostSpan.style.top = `${finalTop}px`;
         ghostSpan.style.left = `${left}px`;
         ghostSpan.style.maxWidth = `${textareaRect.width - (left - textareaRect.left) - paddingLeft}px`;
         ghostSpan.style.minWidth = '0px';
