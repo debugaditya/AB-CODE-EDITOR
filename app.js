@@ -1,3 +1,20 @@
+const express = require('express');
+const cors = require('cors');
+const dotenv = require('dotenv');
+const path = require('path');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+
+dotenv.config();
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname)));
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 app.post('/ask', async (req, res) => {
   const { data, lang } = req.body;
   if (!data) return res.status(400).json({ error: "Missing input data in request body." });
@@ -28,7 +45,7 @@ Ensure you only output the content between the ---SNIPPET--- and ---FULLCODE--- 
 
     const response = result.response;
     const text = response?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    
+
     console.log('Gemini raw response text:', JSON.stringify(text));
 
     const snippetMatch = text.match(/---SNIPPET---\n([\s\S]*?)\n---FULLCODE---/);
@@ -48,4 +65,9 @@ Ensure you only output the content between the ---SNIPPET--- and ---FULLCODE--- 
     console.error('Error generating content:', error);
     res.status(500).json({ error: 'Failed to generate content from AI.', details: error.message });
   }
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`Server is running on http://localhost:${PORT}`);
 });
