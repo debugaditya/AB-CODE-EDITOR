@@ -80,10 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const res = await fetch(fileName);
                 let code = await res.text();
-                // This line was intentionally kept as per your clarification
-                // if (id === 'html') {
-                //     code = formatHtml(code);
-                // }
                 textarea.value = code;
                 onInput();
             } catch (err) {
@@ -362,11 +358,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!currentActiveElement) return;
 
+        // Prioritize Copilot Tab acceptance
         if (e.key === "Tab" || e.keyCode === 9) {
             e.preventDefault();
-            if (currentSnippet && fullCode) {
+            if (currentSnippet && fullCode) { // Check if a suggestion exists
                 acceptSuggestion();
-            } else if (e.shiftKey) {
+            } else if (e.shiftKey) { // Handle Shift + Tab for de-indentation
                 const lines = value.substring(0, start).split('\n');
                 const currentLineIndex = lines.length - 1;
                 const currentLineStart = start - lines[currentLineIndex].length;
@@ -400,7 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.value = deIndentedValue;
                 this.selectionStart = this.selectionEnd = newCursorPosition;
 
-            } else {
+            } else { // Regular Tab for indentation when no suggestion
                 const indentation = ' '.repeat(TAB_SIZE);
                 this.value = value.substring(0, start) + indentation + value.substring(end);
                 this.selectionStart = this.selectionEnd = start + TAB_SIZE;
