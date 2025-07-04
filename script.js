@@ -33,42 +33,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return match ? match[0].length : 0;
     };
 
-    // --- Basic HTML Indentation Function (kept as utility, not used on load) ---
-    // This function is currently not used anywhere in your provided logic
-    // for initial file loading or general formatting. It's a standalone utility.
-    function formatHtml(htmlString) {
-        let indentLevel = 0;
-        let formattedHtml = [];
-        const lines = htmlString.split('\n');
-        const indentStep = ' '.repeat(TAB_SIZE);
-
-        lines.forEach(line => {
-            const trimmedLine = line.trim();
-            if (trimmedLine.length === 0) {
-                formattedHtml.push(''); // Keep blank lines
-                return;
-            }
-
-            // Check for closing tags first to de-indent before adding the line
-            // Matches </tag> or if (trimmedLine.match(/^\s*<\//) || trimmedLine.startsWith('')) {
-                indentLevel = Math.max(0, indentLevel - 1);
-            }
-
-            formattedHtml.push(indentStep.repeat(indentLevel) + trimmedLine);
-
-            // Check for opening tags to indent for the next line
-            // Matches <tag> or <tag attr="value"> but not self-closing <tag/>
-            // Excludes common self-closing tags and SVG elements that don't need indentation
-            if (trimmedLine.match(/<[a-zA-Z0-9]+[^>]*[^/]>$/) &&
-                !trimmedLine.match(/<\/(?!svg|path|g|circle|rect|line|polygon|polyline|ellipse|text|image|foreignObject|use|defs|clipPath|mask|pattern|symbol|marker|view|style|script|title|desc|metadata|filter|feBlend|feColorMatrix|feComponentTransfer|feComposite|feConvolveMatrix|feDiffuseLighting|feDisplacementMap|feFlood|feGaussianBlur|feImage|feMerge|feMorphology|feOffset|feSpecularLighting|feTile|feTurbulence|linearGradient|radialGradient|stop|animate|animateMotion|animateTransform|set|mpath|altGlyph|color-profile|cursor|font|font-face|font-face-format|font-face-name|font-face-src|font-face-uri|hkern|vkern|missing-glyph|tref|altGlyphDef|altGlyphItem|glyph|glyphRef|textPath|tspan|view|a)\s*$/) &&
-                !trimmedLine.endsWith('/>')) { // Also explicitly check for /> for self-closing
-                indentLevel++;
-            }
-        });
-        return formattedHtml.join('\n');
-    }
-    // --- END Basic HTML Indentation Function ---
-
 
     // Toggle dropdown on button click
     dropBtn.addEventListener('click', (e) => {
