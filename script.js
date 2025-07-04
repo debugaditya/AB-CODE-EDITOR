@@ -331,11 +331,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!currentActiveElement) return;
 
-        // Core logic: If Tab is pressed AND a suggestion exists, accept it.
+        // The core logic for Tab accepting suggestion
         if (e.key === "Tab" || e.keyCode === 9) {
             e.preventDefault();
             if (currentSnippet && fullCode) {
                 acceptSuggestion();
+            } else {
+                // If no suggestion, perform standard tab indentation
+                const indentation = ' '.repeat(TAB_SIZE);
+                this.value = value.substring(0, start) + indentation + value.substring(end);
+                this.selectionStart = this.selectionEnd = start + TAB_SIZE;
             }
             return;
         }
