@@ -335,6 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             if (currentSnippet && fullCode) {
                 acceptSuggestion();
+                return;
             } else if (e.shiftKey) {
                 const lines = value.substring(0, start).split('\n');
                 const currentLineIndex = lines.length - 1;
