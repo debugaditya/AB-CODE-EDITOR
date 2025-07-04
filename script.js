@@ -80,7 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     observer.observe(document.body, { childList: true, subtree: true, attributes: true });
 
-
     function handleFocusIn(event) {
         const target = event.target;
         if (target.tagName === "TEXTAREA" || target.getAttribute("contenteditable") === "true") {
@@ -119,7 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (newActiveElement !== currentActiveElement &&
                 newActiveElement !== event.target &&
                 (newActiveElement === null ||
-                (newActiveElement.tagName !== "TEXTAREA" && newActiveElement.getAttribute("contenteditable") !== "true"))) {
+                    (newActiveElement.tagName !== "TEXTAREA" && newActiveElement.getAttribute("contenteditable") !== "true"))) {
                 if (currentActiveElement) {
                     hideSuggestion();
                     currentActiveElement = null;
@@ -276,7 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             lastPrompt = fullInput;
             fetchSuggestion(fullInput);
-        }, 500);
+        }, 200); // Faster debounce
     }
 
     async function fetchSuggestion(prompt) {
@@ -331,13 +330,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!currentActiveElement) return;
 
-        // The core logic for Tab accepting suggestion
         if (e.key === "Tab" || e.keyCode === 9) {
             e.preventDefault();
+            if (!currentSnippet && lastPrompt) {
+                fetchSuggestion(lastPrompt); // manually fetch if needed
+                return;
+            }
+
             if (currentSnippet && fullCode) {
                 acceptSuggestion();
             } else {
-                // If no suggestion, perform standard tab indentation
                 const indentation = ' '.repeat(TAB_SIZE);
                 this.value = value.substring(0, start) + indentation + value.substring(end);
                 this.selectionStart = this.selectionEnd = start + TAB_SIZE;
@@ -362,7 +364,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const textBeforeCursorOnLine = currentLine.substring(0, start - (value.lastIndexOf('\n', start - 1) + 1));
             if (lastChar === '>' && textBeforeCursorOnLine.trim().endsWith('>')) {
-                 leadingSpaces += TAB_SIZE;
+                leadingSpaces += TAB_SIZE;
             } else if (lastChar === '{' || lastChar === '(' || lastChar === '[' || lastChar === ':') {
                 leadingSpaces += TAB_SIZE;
             }
@@ -384,7 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const prevLastChar = trimmedPrevLine.charAt(trimmedPrevLine.length - 1);
 
                 const shouldDeIndent = (currentLineLeadingSpaces > prevLineLeadingSpaces) &&
-                                         !(prevLastChar === '{' || prevLastChar === '(' || prevLastChar === '[');
+                    !(prevLastChar === '{' || prevLastChar === '(' || prevLastChar === '[');
 
                 if (shouldDeIndent) {
                     e.preventDefault();
