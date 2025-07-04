@@ -1,6 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
     const dropBtn = document.querySelector('.dropbtn');
     const menu = document.querySelector('.dropdown-menu');
+    // The original code had a '.dropdown-content' selector, but no such class was in the HTML.
+    // If you intend to use it, ensure an element has this class. Otherwise, it will be null.
     const dropdown = document.querySelector('.dropdown-content');
     const textarea = document.getElementById('codeEditor');
 
@@ -10,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
         "python": "python.txt",
         "java": "java.txt",
         "javascript": "javascript.txt",
-        "html": "html.txt", // This will trigger HTML formatting
+        "html": "html.txt",
         "css": "css.txt"
     };
 
@@ -18,10 +20,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Copilot/Suggestion Related Variables ---
     let currentActiveElement = null; // Store the currently focused textarea/editable div
-    let ghostSpan = null;
-    let currentSnippet = "";
-    let fullCode = "";
-    let lastPrompt = "";
+    let ghostSpan = null; // The span element to show suggestions
+    let currentSnippet = ""; // The actual suggestion text (diff from current input)
+    let fullCode = ""; // The complete code with suggestion applied
+    let lastPrompt = ""; // To avoid re-fetching for same input
     let debounceTimer = null; // Timer for delaying API calls
     let focusOutTimer = null; // Timer for debouncing focusout
 
@@ -32,6 +34,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- Basic HTML Indentation Function (kept as utility, not used on load) ---
+    // This function is currently not used anywhere in your provided logic
+    // for initial file loading or general formatting. It's a standalone utility.
     function formatHtml(htmlString) {
         let indentLevel = 0;
         let formattedHtml = [];
@@ -46,8 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Check for closing tags first to de-indent before adding the line
-            // Matches </tag> or <!-- closing comment -->
-            if (trimmedLine.match(/^\s*<\//) || trimmedLine.startsWith('<!--') && trimmedLine.endsWith('-->')) {
+            // Matches </tag> or if (trimmedLine.match(/^\s*<\//) || trimmedLine.startsWith('')) {
                 indentLevel = Math.max(0, indentLevel - 1);
             }
 
@@ -68,13 +71,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // Toggle dropdown on button click
-    dropBtn.addEventListener('click', () => {
+    dropBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent click from bubbling to window and closing immediately
         menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
     });
 
     // Hide dropdown if clicked outside
     window.addEventListener('click', (e) => {
-        if (!dropdown.contains(e.target)) {
+        // Check if the click occurred outside both the dropdown button and the menu
+        if (!dropBtn.contains(e.target) && !menu.contains(e.target)) {
             menu.style.display = 'none';
         }
     });
@@ -94,12 +99,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await fetch(fileName);
                 let code = await res.text(); // Get the raw code
 
-                // Removed: Apply HTML formatting if it's an HTML file on load
-                // if (id === 'html') {
-                //     code = formatHtml(code);
-                // }
-
                 textarea.value = code;
+                // After loading new code, trigger an input event to check for new suggestions
+                // Or simply call onInput directly as currentActiveElement is set
+                onInput();
             } catch (err) {
                 console.error("Error loading file:", err);
                 textarea.value = `// Failed to load ${fileName}`;
@@ -109,17 +112,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // --- Global Event Listeners for Focus (Now within DOMContentLoaded) ---
+    // --- Global Event Listeners for Focus ---
+    // These ensure that focus changes between *any* elements are tracked
     document.addEventListener("focusin", handleFocusIn);
     document.addEventListener("focusout", handleFocusOut);
 
     // MutationObserver to ensure new elements (if dynamically added) get listeners
+    // This is useful if you had other textareas/editable divs being added/removed
     const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
             if (mutation.type === 'childList' || mutation.type === 'attributes') {
                 if (document.activeElement &&
                     (document.activeElement.tagName === "TEXTAREA" || document.activeElement.getAttribute("contenteditable") === "true") &&
                     document.activeElement !== currentActiveElement) {
+                    // If focus is already on a relevant element that just got added/modified
                     handleFocusIn({ target: document.activeElement });
                 }
             }
@@ -138,13 +144,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             currentActiveElement = target;
             setupElementListeners(currentActiveElement);
-            onInput(); // Trigger initial suggestion if text exists
+            onInput(); // Trigger initial suggestion if text exists on focus
         } else {
             // If focus moves out of a monitored element to a non-monitored one
             if (currentActiveElement) {
                 console.log("Focus moving out of a monitored element. New target:", target);
-                hideSuggestion();
-                currentActiveElement = null; // Clear the reference
+                // Using a small delay to distinguish between focus moving within a complex UI element
+                if (focusOutTimer) clearTimeout(focusOutTimer);
+                focusOutTimer = setTimeout(() => {
+                    // Only hide if the new active element is genuinely not part of our UI or is null
+                    if (document.activeElement !== currentActiveElement &&
+                        (document.activeElement.tagName !== "TEXTAREA" && document.activeElement.getAttribute("contenteditable") !== "true")) {
+                        hideSuggestion();
+                        currentActiveElement = null; // Clear the reference
+                    }
+                }, 50); // Short delay
             }
         }
     }
@@ -153,32 +167,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const relatedTarget = event.relatedTarget; // The element that focus is moving TO
         console.log("FocusOut detected. Target:", event.target, "Related Target:", relatedTarget);
 
+        // Clear any pending focusOut timer if focus returns quickly
         if (focusOutTimer) clearTimeout(focusOutTimer);
+
         focusOutTimer = setTimeout(() => {
             const newActiveElement = document.activeElement;
             console.log("FocusOut timeout checking. New active element:", newActiveElement);
 
-            // Allow focus to move to the ghost span without hiding
-            if (newActiveElement === ghostSpan) {
-                console.log("Focus moved to ghost span, keeping active element.");
-                return;
-            }
-
-            // Only clear if the new active element is genuinely outside our tracked elements
+            // If focus genuinely moved outside our editor elements (and not to ghostSpan)
             if (newActiveElement !== currentActiveElement &&
-                newActiveElement !== event.target && // Check if focus stayed on the same element unexpectedly
-                (newActiveElement.tagName !== "TEXTAREA" && newActiveElement.getAttribute("contenteditable") !== "true")) { // Check if new active is *not* a target
-                if (currentActiveElement) {
-                    console.log("True blur detected, clearing active element.");
+                newActiveElement !== ghostSpan && // Don't hide if focus moves to ghostSpan (though pointer-events:none makes this unlikely)
+                (newActiveElement === null || // Focus left the document
+                (newActiveElement.tagName !== "TEXTAREA" && newActiveElement.getAttribute("contenteditable") !== "true"))) {
+                if (currentActiveElement) { // Ensure we actually had an active element to begin with
+                    console.log("True blur detected, clearing active element and hiding suggestion.");
                     hideSuggestion();
                     currentActiveElement = null; // Clear the reference
                 }
             }
-        }, 150); // Increased delay slightly to 150ms
+        }, 150); // Increased delay slightly to 150ms to allow for rapid clicks/focus changes
     }
 
     function setupElementListeners(element) {
-        // Remove existing listeners to prevent duplicates
+        // Remove existing listeners to prevent duplicates if focus quickly shifts back
         element.removeEventListener("input", onInput);
         element.removeEventListener("keydown", onKeyDown);
 
@@ -186,18 +197,10 @@ document.addEventListener('DOMContentLoaded', () => {
         element.addEventListener("input", onInput);
         element.addEventListener("keydown", onKeyDown);
 
+        // Create ghostSpan if it doesn't exist
         if (!ghostSpan) {
             ghostSpan = document.createElement('span');
-            ghostSpan.style.position = "absolute";
-            ghostSpan.style.opacity = "0.4";
-            ghostSpan.style.pointerEvents = "none";
-            ghostSpan.style.color = "#999";
-            ghostSpan.style.fontFamily = "monospace";
-            ghostSpan.style.whiteSpace = "pre-wrap";
-            ghostSpan.style.wordBreak = "break-word";
-            ghostSpan.style.zIndex = "9999";
-            ghostSpan.style.background = "transparent";
-            ghostSpan.style.border = "none";
+            ghostSpan.className = 'ghost-suggestion'; // Apply a class for styling
             document.body.appendChild(ghostSpan);
         }
         console.log("Copilot listeners set up for current active element:", element);
@@ -206,31 +209,28 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Copilot/Suggestion Related Functions ---
     function showSuggestion(snippet) {
         console.log("Attempting to SHOW suggestion:", snippet);
-        hideSuggestion();
         if (!currentActiveElement || !ghostSpan || !snippet) {
-            console.log("SHOW aborted: Missing active element, or no snippet. currentActiveElement:", currentActiveElement, "ghostSpan:", ghostSpan, "snippet:", snippet);
-            hideSuggestion();
+            console.log("SHOW aborted: Missing active element, ghostSpan, or no snippet. currentActiveElement:", currentActiveElement);
+            hideSuggestion(); // Ensure it's hidden if conditions aren't met
             return;
         }
         currentSnippet = snippet;
-        ghostSpan.textContent = snippet;
-        ghostSpan.style.display = "block";
-        positionGhostSpan();
-        console.log("Suggestion should now be visible.");
-        console.log("GhostSpan computed style (after show):", getComputedStyle(ghostSpan));
-        console.log("GhostSpan textContent:", ghostSpan.textContent);
+        ghostSpan.textContent = snippet; // Set the ghost text
+        ghostSpan.style.display = "block"; // Make it visible
+        positionGhostSpan(); // Position it correctly
+        console.log("Suggestion should now be visible. GhostSpan textContent:", ghostSpan.textContent);
     }
 
     function hideSuggestion() {
         console.log("Attempting to HIDE suggestion.");
         if (ghostSpan) {
-            ghostSpan.style.display = "none";
-            ghostSpan.textContent = "";
+            ghostSpan.style.display = "none"; // Hide it
+            ghostSpan.textContent = ""; // Clear text
         }
-        currentSnippet = "";
-        fullCode = "";
-        lastPrompt = "";
-        if (debounceTimer) clearTimeout(debounceTimer);
+        currentSnippet = ""; // Clear snippet
+        fullCode = ""; // Clear full code
+        lastPrompt = ""; // Reset last prompt
+        if (debounceTimer) clearTimeout(debounceTimer); // Clear any pending API calls
         console.log("Suggestion hidden.");
     }
 
@@ -240,13 +240,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const textareaRect = currentActiveElement.getBoundingClientRect();
         const textareaStyle = window.getComputedStyle(currentActiveElement);
 
+        // Get padding values
         const paddingTop = parseFloat(textareaStyle.paddingTop);
         const paddingLeft = parseFloat(textareaStyle.paddingLeft);
         const lineHeight = parseFloat(textareaStyle.lineHeight);
         const fontSize = parseFloat(textareaStyle.fontSize);
 
-        // Fallback for lineHeight if it's 'normal' or invalid
-        const actualLineHeight = lineHeight > 0 && !isNaN(lineHeight) ? lineHeight : fontSize * 1.2; // A common default multiplier
+        // Fallback for lineHeight if it's 'normal' or invalid (e.g., in some contenteditables)
+        const actualLineHeight = lineHeight > 0 && !isNaN(lineHeight) ? lineHeight : fontSize * 1.2;
 
         const cursorPosition = currentActiveElement.selectionStart;
         const textBeforeCursor = currentActiveElement.value.substring(0, cursorPosition);
@@ -255,13 +256,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const charsOnCurrentLineBeforeCursor = linesBeforeCursor[currentLineNumber].length;
 
         // Create a temporary element to measure character width accurately
+        // This is crucial for monospace fonts where each char has same width.
+        // For proportional fonts, this is more complex and might need canvas.
         const tempMeasurer = document.createElement('span');
         tempMeasurer.style.position = 'absolute';
         tempMeasurer.style.visibility = 'hidden';
         tempMeasurer.style.fontFamily = textareaStyle.fontFamily;
         tempMeasurer.style.fontSize = textareaStyle.fontSize;
         tempMeasurer.style.lineHeight = textareaStyle.lineHeight;
-        tempMeasurer.style.whiteSpace = 'pre'; // Important to measure width of spaces
+        tempMeasurer.style.whiteSpace = 'pre'; // Important: preserves spaces and newlines
         document.body.appendChild(tempMeasurer);
 
         // Measure the width of the text before the cursor on the current line
@@ -269,15 +272,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const textWidthBeforeCursor = tempMeasurer.offsetWidth;
         document.body.removeChild(tempMeasurer); // Clean up
 
-        // Calculate top position
-        // Base top is textarea's top + padding + (line number * line height) - textarea's scrollTop
+        // Calculate top position: textarea's top + padding + (line number * line height) - textarea's scrollTop + document scroll
         const top = textareaRect.top + paddingTop + (currentLineNumber * actualLineHeight) - currentActiveElement.scrollTop + window.scrollY;
 
-        // Calculate left position
-        // Base left is textarea's left + padding + measured width of text before cursor - textarea's scrollLeft
+        // Calculate left position: textarea's left + padding + measured width of text before cursor - textarea's scrollLeft + document scroll
         const left = textareaRect.left + paddingLeft + textWidthBeforeCursor - currentActiveElement.scrollLeft + window.scrollX;
 
-        // Set ghost span styles
+        // Apply styles to ghost span
         ghostSpan.style.top = `${top}px`;
         ghostSpan.style.left = `${left}px`;
         // Constrain to textarea width, considering the starting 'left' position
@@ -298,13 +299,14 @@ document.addEventListener('DOMContentLoaded', () => {
         ghostSpan.style.zIndex = "9999";
     }
 
+    // `acceptSuggestion` is now directly integrated into `onKeyDown` for robustness.
+    // Keeping it here for clarity, but its core logic is copied to `onKeyDown`.
     function acceptSuggestion() {
-        if (!currentActiveElement || !fullCode) return;
+        if (!currentActiveElement || !fullCode) return; // Should not be called directly often anymore
 
         const originalScrollTop = currentActiveElement.scrollTop;
         const originalScrollLeft = currentActiveElement.scrollLeft;
 
-        // Assuming fullCode contains the entire content including the prompt
         currentActiveElement.value = fullCode;
         currentActiveElement.selectionStart = currentActiveElement.selectionEnd = fullCode.length;
 
@@ -332,14 +334,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const fullInput = currentActiveElement.tagName === "TEXTAREA" ? currentActiveElement.value : currentActiveElement.innerText;
 
+            // Only fetch if input has changed and is not empty after trimming
             if (fullInput.trim() === "" || fullInput === lastPrompt) {
+                console.log("Input unchanged or empty, skipping fetch.");
                 return;
             }
 
             lastPrompt = fullInput;
             console.log("Fetching suggestion for:", fullInput);
             fetchSuggestion(fullInput);
-        }, 500);
+        }, 500); // Debounce API calls by 500ms
     }
 
     async function fetchSuggestion(prompt) {
@@ -364,18 +368,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const { snippet, fullCode: full } = await res.json();
             console.log("Received suggestion - Snippet:", snippet, "FullCode:", full);
 
+            // Re-check currentActiveElement in case focus changed during async fetch
             if (!currentActiveElement) {
                 console.warn("currentActiveElement became null after fetch, discarding suggestion.");
                 hideSuggestion();
                 return;
             }
 
+            // Verify that the input hasn't changed since the request was sent
             const currentInputContent = currentActiveElement.tagName === "TEXTAREA" ? currentActiveElement.value : currentActiveElement.innerText;
-            if (currentInputContent === prompt) {
+            if (currentInputContent === prompt) { // Check if the current input still matches the prompt we sent
                 if (snippet && full) {
-                    fullCode = full;
-                    currentSnippet = snippet; // Ensure currentSnippet is set here
-                    showSuggestion(snippet);
+                    fullCode = full; // Store the full code for acceptance
+                    showSuggestion(snippet); // Show only the snippet
                 } else {
                     hideSuggestion();
                     console.log("No valid snippet or fullCode received, hiding suggestion.");
@@ -394,51 +399,93 @@ document.addEventListener('DOMContentLoaded', () => {
         // This 'this' refers to the textarea element due to the event listener context
         const start = this.selectionStart;
         const end = this.selectionEnd;
-        const value = this.value;
+        const value = this.value; // Current value of the editor
 
         if (!currentActiveElement) return; // Ensure currentActiveElement is set
 
-        // Prioritize Copilot Tab acceptance
+        // --- Tab Key Handling (Prioritize Shift + Tab) ---
         if (e.key === "Tab") {
-            e.preventDefault(); // Prevent default tab behavior (inserting tab char or moving focus)
-            if (currentSnippet) {
+            e.preventDefault(); // Always prevent default tab behavior for our custom handling
+
+            if (e.shiftKey) {
+                console.log("Shift+Tab pressed: De-indenting.");
+                const lines = value.substring(0, start).split('\n');
+                const currentLineIndex = lines.length - 1;
+                const currentLineStart = start - lines[currentLineIndex].length;
+                const line = value.substring(currentLineStart, start); // Get current line up to cursor
+
+                let deIndentedValue = value;
+                let newCursorPosition = start;
+
+                if (start !== end) { // If text is selected, de-indent all selected lines
+                    const selectedText = value.substring(start, end);
+                    const selectedLines = selectedText.split('\n');
+                    const newSelectedLines = selectedLines.map(line => {
+                        if (line.startsWith(' '.repeat(TAB_SIZE))) {
+                            return line.substring(TAB_SIZE);
+                        }
+                        return line;
+                    });
+                    deIndentedValue = value.substring(0, start) + newSelectedLines.join('\n') + value.substring(end);
+                    // Adjust cursor position based on how much was de-indented from the start of selection
+                    newCursorPosition = start;
+                    for (let i = 0; i < selectedLines.length; i++) {
+                        if (selectedLines[i].startsWith(' '.repeat(TAB_SIZE))) {
+                            newCursorPosition -= TAB_SIZE;
+                        }
+                    }
+                    newCursorPosition = Math.max(start - (selectedText.length - newSelectedLines.join('\n').length), 0); // Ensure not negative
+                } else { // If no text is selected, de-indent the current line
+                    if (line.startsWith(' '.repeat(TAB_SIZE))) {
+                        deIndentedValue = value.substring(0, currentLineStart) + line.substring(TAB_SIZE) + value.substring(start);
+                        newCursorPosition = start - TAB_SIZE;
+                    }
+                }
+                this.value = deIndentedValue + value.substring(start); // Reassemble
+                this.selectionStart = this.selectionEnd = newCursorPosition;
+
+            } else if (currentSnippet && fullCode) { // If a Copilot suggestion exists and full code is ready
                 console.log("Tab pressed: Accepting Copilot suggestion.");
-                acceptSuggestion();
+                const originalScrollTop = this.scrollTop;
+                const originalScrollLeft = this.scrollLeft;
+
+                this.value = fullCode; // Directly apply the full suggested code
+                this.selectionStart = this.selectionEnd = fullCode.length; // Move cursor to the end
+
+                this.scrollTop = originalScrollTop; // Restore scroll position
+                this.scrollLeft = originalScrollLeft;
+
+                hideSuggestion(); // Hide the ghost text
+                console.log("Suggestion accepted. New value length:", this.value.length);
             } else {
                 console.log("Tab pressed: No Copilot suggestion, performing manual indentation.");
-                // Manual indentation logic
                 const indentation = ' '.repeat(TAB_SIZE);
                 this.value = value.substring(0, start) + indentation + value.substring(end);
                 this.selectionStart = this.selectionEnd = start + TAB_SIZE;
             }
-            return; // Important: Exit after handling Tab
+            return; // Important: Exit after handling Tab in all cases
         }
 
-        // Handle ArrowRight for Copilot acceptance (only if suggestion exists and cursor is at end)
+        // Handle ArrowRight for Copilot acceptance (only if suggestion exists and cursor is at end of text)
         if (e.key === "ArrowRight" && currentSnippet) {
             const currentText = currentActiveElement.tagName === "TEXTAREA" ? currentActiveElement.value : currentActiveElement.innerText;
-            let cursorPosition;
-            if (currentActiveElement.selectionStart !== undefined) {
-                cursorPosition = currentActiveElement.selectionStart;
-            } else if (currentActiveElement.isContentEditable) {
-                const selection = window.getSelection();
-                if (selection.rangeCount > 0) {
-                    const range = selection.getRangeAt(0);
-                    const preCaretRange = range.cloneRange();
-                    preCaretRange.selectNodeContents(currentActiveElement);
-                    preCaretRange.setEnd(range.endContainer, range.endOffset);
-                    cursorPosition = preCaretRange.toString().length;
-                } else {
-                    cursorPosition = currentText.length;
-                }
-            } else {
-                cursorPosition = currentText.length;
-            }
+            const cursorPosition = currentActiveElement.selectionStart;
 
+            // Check if cursor is at the very end of the *current content* (before suggestion)
             if (cursorPosition === currentText.length) {
                 e.preventDefault();
                 console.log("ArrowRight pressed at end of line: Accepting Copilot suggestion.");
-                acceptSuggestion();
+                // Directly apply the logic here as well for consistency with Tab
+                const originalScrollTop = this.scrollTop;
+                const originalScrollLeft = this.scrollLeft;
+
+                this.value = fullCode;
+                this.selectionStart = this.selectionEnd = fullCode.length;
+
+                this.scrollTop = originalScrollTop;
+                this.scrollLeft = originalScrollLeft;
+
+                hideSuggestion();
             }
             return; // Exit after handling ArrowRight
         }
@@ -451,41 +498,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // --- Editor Logic for Indentation and Auto-Closing Brackets (Non-Copilot specific keydowns) ---
-        // Handle Shift + Tab for de-indentation
-        if ((e.key === 'Tab' || e.keyCode === 9) && e.shiftKey) { // This check will only run if the first 'Tab' block above didn't return
-            e.preventDefault();
-            console.log("Shift+Tab pressed: De-indenting.");
-            const lines = value.substring(0, start).split('\n');
-            const currentLineIndex = lines.length - 1;
-            const currentLineStart = start - lines[currentLineIndex].length;
-            const line = value.substring(currentLineStart, end);
 
-            let deIndentedValue = value;
-            let newCursorPosition = start;
-
-            if (start !== end) {
-                const selectedText = value.substring(start, end);
-                const selectedLines = selectedText.split('\n');
-                const newSelectedLines = selectedLines.map(line => {
-                    if (line.startsWith(' '.repeat(TAB_SIZE))) {
-                        return line.substring(TAB_SIZE);
-                    }
-                    return line;
-                });
-                deIndentedValue = value.substring(0, start) + newSelectedLines.join('\n') + value.substring(end);
-                newCursorPosition = start + (newSelectedLines.join('\n').length - selectedText.length);
-            } else {
-                if (line.startsWith(' '.repeat(TAB_SIZE))) {
-                    deIndentedValue = value.substring(0, currentLineStart) + line.substring(TAB_SIZE) + value.substring(end);
-                    newCursorPosition = start - TAB_SIZE;
-                }
-            }
-            this.value = deIndentedValue;
-            this.selectionStart = this.selectionEnd = newCursorPosition;
-            return; // Exit after handling Shift+Tab
-        }
         // Handle Enter key for auto-indentation (general code logic)
-        else if (e.key === 'Enter' || e.keyCode === 13) {
+        else if (e.key === 'Enter') {
             e.preventDefault();
             console.log("Enter pressed: Auto-indenting.");
 
@@ -496,14 +511,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const trimmedCurrentLine = currentLine.trimEnd();
             const lastChar = trimmedCurrentLine.charAt(trimmedCurrentLine.length - 1);
 
-            // --- NEW: HTML-specific indentation after '>' ---
+            // HTML-specific indentation after '>'
+            // This is a simplified check. A more robust HTML parser would be needed for complex cases.
             const textBeforeCursorOnLine = currentLine.substring(0, start - (value.lastIndexOf('\n', start - 1) + 1));
             if (lastChar === '>' && textBeforeCursorOnLine.trim().endsWith('>')) {
-                 leadingSpaces += TAB_SIZE; // Increase indent if previous line ended with '>'
+                leadingSpaces += TAB_SIZE; // Increase indent if previous line ended with '>'
             } else if (lastChar === '{' || lastChar === '(' || lastChar === '[' || lastChar === ':') {
                 leadingSpaces += TAB_SIZE;
             }
-            // --- END NEW: HTML-specific indentation ---
 
             this.value = value.substring(0, start) + '\n' + ' '.repeat(leadingSpaces) + value.substring(end);
             this.selectionStart = this.selectionEnd = start + 1 + leadingSpaces;
@@ -511,16 +526,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         // Handle auto-de-indentation for closing braces/brackets/parentheses
         else if (e.key === '}' || e.key === ')' || e.key === ']') {
-            if (start === end) {
+            if (start === end) { // Only apply if no text is selected
                 const lines = value.substring(0, start).split('\n');
                 const currentLine = lines[lines.length - 1];
-                const prevLine = lines[lines.length - 2] || '';
+                const prevLine = lines[lines.length - 2] || ''; // Get previous line
 
                 const currentLineLeadingSpaces = getLeadingSpaces(currentLine);
                 const prevLineLeadingSpaces = getLeadingSpaces(prevLine);
 
                 const trimmedPrevLine = prevLine.trimEnd();
                 const prevLastChar = trimmedPrevLine.charAt(trimmedPrevLine.length - 1);
+
+                // Conditions for de-indenting:
+                // 1. Current line has more indentation than the previous line.
+                // 2. The previous line did NOT end with an opening brace/bracket/paren (which would imply auto-indent was correct).
                 const shouldDeIndent = (currentLineLeadingSpaces > prevLineLeadingSpaces) &&
                                          !(prevLastChar === '{' || prevLastChar === '(' || prevLastChar === '[');
 
@@ -530,7 +549,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const newLeadingSpaces = Math.max(0, currentLineLeadingSpaces - TAB_SIZE);
                     const deIndentedLine = ' '.repeat(newLeadingSpaces) + currentLine.trimStart();
 
+                    // Reconstruct value: part before current line + de-indented line + typed char + part after cursor
                     this.value = value.substring(0, start - currentLine.length) + deIndentedLine + e.key + value.substring(end);
+                    // Adjust cursor position: original start + 1 (for the typed char) - (difference in leading spaces)
                     this.selectionStart = this.selectionEnd = start + 1 - (currentLineLeadingSpaces - newLeadingSpaces);
                 }
             }
@@ -546,23 +567,26 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (e.key === '{') closingChar = '}';
             else if (e.key === '[') closingChar = ']';
 
+            // Insert opening char, then closing char, then the rest of the text
             this.value = value.substring(0, start) + e.key + closingChar + value.substring(end);
+            // Place cursor between the new opening and closing chars
             this.selectionStart = this.selectionEnd = start + 1;
             return; // Exit after handling opening brackets
         }
     }
 
-    // Optional: Adjust height based on content (currently commented out)
-    textarea.addEventListener('input', () => {
-        // This is a simple auto-resize. For more robust solutions, consider a library or more complex logic.
-        // textarea.style.height = 'auto';
-        // textarea.style.height = (textarea.scrollHeight) + 'px';
-    });
+    // Optional: Adjust height based on content
+    // textarea.addEventListener('input', () => {
+    //     textarea.style.height = 'auto';
+    //     textarea.style.height = (textarea.scrollHeight) + 'px';
+    // });
 
     // Initial setup for the textarea since it's present on load
     if (textarea) {
         currentActiveElement = textarea;
         setupElementListeners(textarea);
-        onInput(); // Trigger initial suggestion if text exists
+        // Do not call onInput() immediately here if you want to wait for user input
+        // or a loaded file. Calling it now would trigger a fetch on an empty editor.
+        // It's already called in handleFocusIn or after file load.
     }
 });
