@@ -29,34 +29,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return match ? match[0].length : 0;
     };
 
-    function formatHtml(htmlString) {
-        let indentLevel = 0;
-        let formattedHtml = [];
-        const lines = htmlString.split('\n');
-        const indentStep = ' '.repeat(TAB_SIZE);
-
-        lines.forEach(line => {
-            const trimmedLine = line.trim();
-            if (trimmedLine.length === 0) {
-                formattedHtml.push('');
-                return;
-            }
-
-            if (trimmedLine.match(/^\s*<\//) || trimmedLine.startsWith('')) {
-                indentLevel = Math.max(0, indentLevel - 1);
-            }
-
-            formattedHtml.push(indentStep.repeat(indentLevel) + trimmedLine);
-
-            if (trimmedLine.match(/<[a-zA-Z0-9]+[^>]*[^/]>$/) &&
-                !trimmedLine.match(/<\/(?!svg|path|g|circle|rect|line|polygon|polyline|ellipse|text|image|foreignObject|use|defs|clipPath|mask|pattern|symbol|marker|view|style|script|title|desc|metadata|filter|feBlend|feColorMatrix|feComponentTransfer|feComposite|feConvolveMatrix|feDiffuseLighting|feDisplacementMap|feFlood|feGaussianBlur|feImage|feMerge|feMorphology|feOffset|feSpecularLighting|feTile|feTurbulence|linearGradient|radialGradient|stop|animate|animateMotion|animateTransform|set|mpath|altGlyph|color-profile|cursor|font|font-face|font-face-format|font-face-name|font-face-src|font-face-uri|hkern|vkern|missing-glyph|tref|altGlyphDef|altGlyphItem|glyph|glyphRef|textPath|tspan|view|a)\s*$/) &&
-                !trimmedLine.endsWith('/>')) {
-                indentLevel++;
-            }
-        });
-        return formattedHtml.join('\n');
-    }
-
     dropBtn.addEventListener('click', () => {
         menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
     });
