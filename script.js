@@ -206,6 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Copilot/Suggestion Related Functions ---
     function showSuggestion(snippet) {
         console.log("Attempting to SHOW suggestion:", snippet);
+        hideSuggestion();
         if (!currentActiveElement || !ghostSpan || !snippet) {
             console.log("SHOW aborted: Missing active element, or no snippet. currentActiveElement:", currentActiveElement, "ghostSpan:", ghostSpan, "snippet:", snippet);
             hideSuggestion();
@@ -332,8 +333,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const fullInput = currentActiveElement.tagName === "TEXTAREA" ? currentActiveElement.value : currentActiveElement.innerText;
 
             if (fullInput.trim() === "" || fullInput === lastPrompt) {
-                console.log("onInput debounced: No change or empty input, hiding suggestion.");
-                hideSuggestion();
                 return;
             }
 
