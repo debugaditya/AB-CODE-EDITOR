@@ -29,35 +29,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return match ? match[0].length : 0;
     };
 
-    function formatHtml(htmlString) {
-        let indentLevel = 0;
-        let formattedHtml = [];
-        const lines = htmlString.split('\n');
-        const indentStep = ' '.repeat(TAB_SIZE);
-
-        lines.forEach(line => {
-            const trimmedLine = line.trim();
-            if (trimmedLine.length === 0) {
-                formattedHtml.push('');
-                return;
-            }
-
-            if (trimmedLine.match(/^\s*<\//) || trimmedLine.startsWith('')) {
-                indentLevel = Math.max(0, indentLevel - 1);
-            }
-
-            formattedHtml.push(indentStep.repeat(indentLevel) + trimmedLine);
-
-            if (trimmedLine.match(/<[a-zA-Z0-9]+[^>]*[^/]>$/) &&
-                !trimmedLine.match(/<\/(?!svg|path|g|circle|rect|line|polygon|polyline|ellipse|text|image|foreignObject|use|defs|clipPath|mask|pattern|symbol|marker|view|style|script|title|desc|metadata|filter|feBlend|feColorMatrix|feComponentTransfer|feComposite|feConvolveMatrix|feDiffuseLighting|feDisplacementMap|feFlood|feGaussianBlur|feImage|feMerge|feMorphology|feOffset|feSpecularLighting|feTile|feTurbulence|linearGradient|radialGradient|stop|animate|animateMotion|animateTransform|set|mpath|altGlyph|color-profile|cursor|font|font-face|font-face-format|font-face-name|font-face-src|font-face-uri|hkern|vkern|missing-glyph|tref|altGlyphDef|altGlyphItem|glyph|glyphRef|textPath|tspan|view|a)\s*$/) &&
-                !trimmedLine.endsWith('/>')) {
-                indentLevel++;
-            }
-        });
-        return formattedHtml.join('\n');
-    }
-
-    dropBtn.addEventListener('click', () => {
+    dropBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
         menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
     });
 
@@ -80,10 +53,6 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const res = await fetch(fileName);
                 let code = await res.text();
-                // This line was intentionally kept as per your clarification
-                // if (id === 'html') {
-                //    code = formatHtml(code);
-                // }
                 textarea.value = code;
                 onInput();
             } catch (err) {
@@ -365,9 +334,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === "Tab" || e.keyCode === 9) {
             e.preventDefault();
             if (currentSnippet && fullCode) {
-                acceptSuggestion(); // Accept suggestion if available
+                acceptSuggestion();
             } else if (e.shiftKey) {
-                // De-indentation logic
                 const lines = value.substring(0, start).split('\n');
                 const currentLineIndex = lines.length - 1;
                 const currentLineStart = start - lines[currentLineIndex].length;
@@ -399,7 +367,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.value = deIndentedValue;
                 this.selectionStart = this.selectionEnd = newCursorPosition;
             } else {
-                // Indentation logic
                 const indentation = ' '.repeat(TAB_SIZE);
                 this.value = value.substring(0, start) + indentation + value.substring(end);
                 this.selectionStart = this.selectionEnd = start + TAB_SIZE;
