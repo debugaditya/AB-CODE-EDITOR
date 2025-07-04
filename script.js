@@ -80,7 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     observer.observe(document.body, { childList: true, subtree: true, attributes: true });
 
-
     function handleFocusIn(event) {
         const target = event.target;
         if (target.tagName === "TEXTAREA" || target.getAttribute("contenteditable") === "true") {
@@ -299,7 +298,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(`Server error: ${res.status} - ${errorData.error || res.statusText}`);
             }
 
-            const { snippet, fullCode: full } = await res.json();
+            const { snippet, fullCode: fetchedFullCode } = await res.json();
 
             if (!currentActiveElement) {
                 hideSuggestion();
@@ -308,8 +307,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const currentInputContent = currentActiveElement.tagName === "TEXTAREA" ? currentActiveElement.value : currentActiveElement.innerText;
             if (currentInputContent === prompt) {
-                if (snippet && full) {
-                    fullCode = full;
+                if (snippet && fetchedFullCode) {
+                    fullCode = fetchedFullCode;
                     currentSnippet = snippet;
                     showSuggestion(snippet);
                 } else {
