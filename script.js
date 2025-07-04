@@ -358,12 +358,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!currentActiveElement) return;
 
-        // Prioritize Copilot Tab acceptance
         if (e.key === "Tab" || e.keyCode === 9) {
             e.preventDefault();
-            if (currentSnippet && fullCode) { // Check if a suggestion exists
+            if (currentSnippet && fullCode) {
                 acceptSuggestion();
-            } else if (e.shiftKey) { // Handle Shift + Tab for de-indentation
+            } else if (e.shiftKey) {
                 const lines = value.substring(0, start).split('\n');
                 const currentLineIndex = lines.length - 1;
                 const currentLineStart = start - lines[currentLineIndex].length;
@@ -397,7 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.value = deIndentedValue;
                 this.selectionStart = this.selectionEnd = newCursorPosition;
 
-            } else { // Regular Tab for indentation when no suggestion
+            } else {
                 const indentation = ' '.repeat(TAB_SIZE);
                 this.value = value.substring(0, start) + indentation + value.substring(end);
                 this.selectionStart = this.selectionEnd = start + TAB_SIZE;
