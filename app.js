@@ -24,7 +24,7 @@ app.get('/', (req, res) => {
 
 // POST endpoint for AI suggestions
 app.post('/ask', async (req, res) => {
-  const { data } = req.body;
+  const { data , lang} = req.body;
 
   // Validate incoming request data
   if (!data) {
@@ -43,7 +43,7 @@ app.post('/ask', async (req, res) => {
     const result = await model.generateContent({
       contents: [{
         parts: [{
-          text: `You are an intelligent AI assistant, like a copilot, designed to help users complete their thoughts or fix their text within a web input field.
+          text: `You are an intelligent AI assistant, like a copilot, designed to help users complete their thoughts or fix their code of ${lang} within a web input field.
 The user's current input in the text field is:
 
 "${data}"
