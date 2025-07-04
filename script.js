@@ -80,6 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     observer.observe(document.body, { childList: true, subtree: true, attributes: true });
 
+
     function handleFocusIn(event) {
         const target = event.target;
         if (target.tagName === "TEXTAREA" || target.getAttribute("contenteditable") === "true") {
@@ -330,46 +331,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!currentActiveElement) return;
 
+        // Core logic: If Tab is pressed AND a suggestion exists, accept it.
         if (e.key === "Tab" || e.keyCode === 9) {
             e.preventDefault();
             if (currentSnippet && fullCode) {
                 acceptSuggestion();
-                return;
-            } else if (e.shiftKey) {
-                const lines = value.substring(0, start).split('\n');
-                const currentLineIndex = lines.length - 1;
-                const currentLineStart = start - lines[currentLineIndex].length;
-                const line = value.substring(currentLineStart, start);
-
-                let deIndentedValue = value;
-                let newCursorPosition = start;
-
-                if (start !== end) {
-                    const selectedText = value.substring(start, end);
-                    const selectedLines = selectedText.split('\n');
-                    const newSelectedLines = selectedLines.map(line => {
-                        if (line.startsWith(' '.repeat(TAB_SIZE))) {
-                            return line.substring(TAB_SIZE);
-                        }
-                        return line;
-                    });
-                    deIndentedValue = value.substring(0, start) + newSelectedLines.join('\n') + value.substring(end);
-                    const removedLength = selectedText.length - newSelectedLines.join('\n').length;
-                    this.value = deIndentedValue;
-                    this.selectionStart = start;
-                    this.selectionEnd = end - removedLength;
-                } else {
-                    if (line.startsWith(' '.repeat(TAB_SIZE))) {
-                        deIndentedValue = value.substring(0, currentLineStart) + line.substring(TAB_SIZE) + value.substring(start);
-                        newCursorPosition = start - TAB_SIZE;
-                    }
-                }
-                this.value = deIndentedValue;
-                this.selectionStart = this.selectionEnd = newCursorPosition;
-            } else {
-                const indentation = ' '.repeat(TAB_SIZE);
-                this.value = value.substring(0, start) + indentation + value.substring(end);
-                this.selectionStart = this.selectionEnd = start + TAB_SIZE;
             }
             return;
         }
