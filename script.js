@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const dropBtn = document.querySelector('.dropbtn');
     const menu = document.querySelector('.dropdown-menu');
+    const dropdown = document.querySelector('.dropdown-content');
     const textarea = document.getElementById('codeEditor');
 
     const mp = {
@@ -28,13 +29,40 @@ document.addEventListener('DOMContentLoaded', () => {
         return match ? match[0].length : 0;
     };
 
-    dropBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
+    function formatHtml(htmlString) {
+        let indentLevel = 0;
+        let formattedHtml = [];
+        const lines = htmlString.split('\n');
+        const indentStep = ' '.repeat(TAB_SIZE);
+
+        lines.forEach(line => {
+            const trimmedLine = line.trim();
+            if (trimmedLine.length === 0) {
+                formattedHtml.push('');
+                return;
+            }
+
+            if (trimmedLine.match(/^\s*<\//) || trimmedLine.startsWith('')) {
+                indentLevel = Math.max(0, indentLevel - 1);
+            }
+
+            formattedHtml.push(indentStep.repeat(indentLevel) + trimmedLine);
+
+            if (trimmedLine.match(/<[a-zA-Z0-9]+[^>]*[^/]>$/) &&
+                !trimmedLine.match(/<\/(?!svg|path|g|circle|rect|line|polygon|polyline|ellipse|text|image|foreignObject|use|defs|clipPath|mask|pattern|symbol|marker|view|style|script|title|desc|metadata|filter|feBlend|feColorMatrix|feComponentTransfer|feComposite|feConvolveMatrix|feDiffuseLighting|feDisplacementMap|feFlood|feGaussianBlur|feImage|feMerge|feMorphology|feOffset|feSpecularLighting|feTile|feTurbulence|linearGradient|radialGradient|stop|animate|animateMotion|animateTransform|set|mpath|altGlyph|color-profile|cursor|font|font-face|font-face-format|font-face-name|font-face-src|font-face-uri|hkern|vkern|missing-glyph|tref|altGlyphDef|altGlyphItem|glyph|glyphRef|textPath|tspan|view|a)\s*$/) &&
+                !trimmedLine.endsWith('/>')) {
+                indentLevel++;
+            }
+        });
+        return formattedHtml.join('\n');
+    }
+
+    dropBtn.addEventListener('click', () => {
         menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
     });
 
     window.addEventListener('click', (e) => {
-        if (!dropBtn.contains(e.target) && !menu.contains(e.target)) {
+        if (!dropdown.contains(e.target) && !dropBtn.contains(e.target)) {
             menu.style.display = 'none';
         }
     });
@@ -52,6 +80,10 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const res = await fetch(fileName);
                 let code = await res.text();
+                // This line was intentionally kept as per your clarification
+                // if (id === 'html') {
+                //     code = formatHtml(code);
+                // }
                 textarea.value = code;
                 onInput();
             } catch (err) {
@@ -111,8 +143,12 @@ document.addEventListener('DOMContentLoaded', () => {
         focusOutTimer = setTimeout(() => {
             const newActiveElement = document.activeElement;
 
+            if (newActiveElement === ghostSpan) {
+                return;
+            }
+
             if (newActiveElement !== currentActiveElement &&
-                newActiveElement !== ghostSpan &&
+                newActiveElement !== event.target &&
                 (newActiveElement === null ||
                 (newActiveElement.tagName !== "TEXTAREA" && newActiveElement.getAttribute("contenteditable") !== "true"))) {
                 if (currentActiveElement) {
@@ -132,12 +168,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!ghostSpan) {
             ghostSpan = document.createElement('span');
-            ghostSpan.className = 'ghost-suggestion';
+            ghostSpan.style.position = "absolute";
+            ghostSpan.style.opacity = "0.4";
+            ghostSpan.style.pointerEvents = "none";
+            ghostSpan.style.color = "#999";
+            ghostSpan.style.fontFamily = "monospace";
+            ghostSpan.style.fontSize = "1em";
+            ghostSpan.style.lineHeight = "normal";
+            ghostSpan.style.whiteSpace = "pre-wrap";
+            ghostSpan.style.wordBreak = "break-word";
+            ghostSpan.style.zIndex = "9999";
+            ghostSpan.style.background = "transparent";
+            ghostSpan.style.border = "none";
             document.body.appendChild(ghostSpan);
         }
     }
 
     function showSuggestion(snippet) {
+        hideSuggestion();
         if (!currentActiveElement || !ghostSpan || !snippet) {
             hideSuggestion();
             return;
@@ -165,80 +213,53 @@ document.addEventListener('DOMContentLoaded', () => {
         const textareaRect = currentActiveElement.getBoundingClientRect();
         const textareaStyle = window.getComputedStyle(currentActiveElement);
 
-        const paddingLeft = parseFloat(textareaStyle.paddingLeft);
         const paddingTop = parseFloat(textareaStyle.paddingTop);
-        const fontSize = parseFloat(textareaStyle.fontSize);
+        const paddingLeft = parseFloat(textareaStyle.paddingLeft);
+        const borderTopWidth = parseFloat(textareaStyle.borderTopWidth);
+        const borderLeftWidth = parseFloat(textareaStyle.borderLeftWidth);
         const lineHeight = parseFloat(textareaStyle.lineHeight);
+        const fontSize = parseFloat(textareaStyle.fontSize);
+
         const actualLineHeight = lineHeight > 0 && !isNaN(lineHeight) ? lineHeight : fontSize * 1.2;
 
-        let cursorCoords;
+        const cursorPosition = currentActiveElement.selectionStart;
+        const textBeforeCursor = currentActiveElement.value.substring(0, cursorPosition);
+        const linesBeforeCursor = textBeforeCursor.split('\n');
+        const currentLineNumber = linesBeforeCursor.length - 1;
+        const charsOnCurrentLineBeforeCursor = linesBeforeCursor[currentLineNumber].length;
 
-        // For TEXTAREA elements, we can often rely on a simpler approach
-        // if direct DOM manipulation for cursor is not feasible/reliable.
-        // The common approach for textarea is to use a mirror div.
-        // However, if the mirror div is problematic, we can try to get
-        // the rect of a temporary range for contenteditable, or
-        // fallback to approximate for textarea.
-
-        // Let's use the mirror div with careful attention to scroll.
-        const tempMeasurer = document.createElement('div');
+        const tempMeasurer = document.createElement('span');
         tempMeasurer.style.position = 'absolute';
         tempMeasurer.style.visibility = 'hidden';
-        tempMeasurer.style.pointerEvents = 'none'; // Ensure it doesn't interfere with interaction
+        tempMeasurer.style.whiteSpace = 'pre';
         tempMeasurer.style.fontFamily = textareaStyle.fontFamily;
         tempMeasurer.style.fontSize = textareaStyle.fontSize;
         tempMeasurer.style.lineHeight = textareaStyle.lineHeight;
-        tempMeasurer.style.whiteSpace = 'pre-wrap'; // Important for matching line breaks/wrapping
-        tempMeasurer.style.wordBreak = 'break-word'; // Important for matching word breaking
         tempMeasurer.style.tabSize = textareaStyle.tabSize;
         tempMeasurer.style.MozTabSize = textareaStyle.MozTabSize;
-        tempMeasurer.style.width = textareaRect.width - paddingLeft - parseFloat(textareaStyle.paddingRight) + 'px'; // Match content width
-        tempMeasurer.style.padding = '0';
-        tempMeasurer.style.border = '0';
-        tempMeasurer.style.boxSizing = textareaStyle.boxSizing; // Crucial
-
-        // To calculate accurate horizontal position for the cursor,
-        // we append the text up to the cursor and measure its width.
-        const textBeforeCursor = currentActiveElement.value.substring(0, currentActiveElement.selectionStart);
-        const lines = textBeforeCursor.split('\n');
-        const currentLineText = lines[lines.length - 1];
-
-        // This span will help measure the width of the text on the current line
-        const widthMeasurer = document.createElement('span');
-        widthMeasurer.textContent = currentLineText;
-        tempMeasurer.appendChild(widthMeasurer);
-
-        // This span will push the height to the correct line
-        const heightMeasurer = document.createElement('span');
-        heightMeasurer.innerHTML = textBeforeCursor.replace(/\n/g, '<br>') + '&#x200b;'; // Use <br> for newlines, add zero-width space
-        tempMeasurer.appendChild(heightMeasurer);
-
         document.body.appendChild(tempMeasurer);
 
-        const cursorX = widthMeasurer.offsetWidth; // Width of text on current line
-        const cursorY = heightMeasurer.offsetHeight; // Total height of content up to cursor, including current line
-
+        tempMeasurer.textContent = linesBeforeCursor[currentLineNumber];
+        const textWidthBeforeCursor = tempMeasurer.offsetWidth;
         document.body.removeChild(tempMeasurer);
 
-        // Adjust for textarea's scroll position
-        const adjustedX = cursorX - currentActiveElement.scrollLeft;
-        const adjustedY = cursorY - currentActiveElement.scrollTop;
+        const top = textareaRect.top + paddingTop + borderTopWidth + (currentLineNumber * actualLineHeight) - currentActiveElement.scrollTop + window.scrollY;
 
-        // Calculate final screen coordinates relative to the viewport
-        // Use textareaRect for its absolute position
-        const finalLeft = textareaRect.left + paddingLeft + adjustedX + window.scrollX;
-        const finalTop = textareaRect.top + paddingTop + adjustedY + window.scrollY - actualLineHeight; // Subtract line height to get to top of line
+        const left = textareaRect.left + paddingLeft + borderLeftWidth + textWidthBeforeCursor - currentActiveElement.scrollLeft + window.scrollX;
 
-        ghostSpan.style.top = `${finalTop}px`;
-        ghostSpan.style.left = `${finalLeft}px`;
-        ghostSpan.style.maxWidth = `${textareaRect.width - (finalLeft - textareaRect.left) - paddingLeft}px`;
+        ghostSpan.style.top = `${top}px`;
+        ghostSpan.style.left = `${left}px`;
+
+        ghostSpan.style.maxWidth = `${textareaRect.width - (left - textareaRect.left) - paddingLeft - parseFloat(textareaStyle.paddingRight) - parseFloat(textareaStyle.borderRightWidth)}px`;
         ghostSpan.style.minWidth = '0px';
         ghostSpan.style.minHeight = '0px';
+
         ghostSpan.style.whiteSpace = "pre-wrap";
         ghostSpan.style.wordBreak = "break-word";
         ghostSpan.style.fontFamily = textareaStyle.fontFamily;
         ghostSpan.style.fontSize = textareaStyle.fontSize;
         ghostSpan.style.lineHeight = textareaStyle.lineHeight;
+
         ghostSpan.style.padding = '0';
         ghostSpan.style.border = 'none';
         ghostSpan.style.background = 'transparent';
@@ -246,6 +267,21 @@ document.addEventListener('DOMContentLoaded', () => {
         ghostSpan.style.opacity = "0.4";
         ghostSpan.style.color = "#999";
         ghostSpan.style.zIndex = "9999";
+    }
+
+    function acceptSuggestion() {
+        if (!currentActiveElement || !fullCode) return;
+
+        const originalScrollTop = currentActiveElement.scrollTop;
+        const originalScrollLeft = currentActiveElement.scrollLeft;
+
+        currentActiveElement.value = fullCode;
+        currentActiveElement.selectionStart = currentActiveElement.selectionEnd = fullCode.length;
+
+        currentActiveElement.scrollTop = originalScrollTop;
+        currentActiveElement.scrollLeft = originalScrollLeft;
+
+        hideSuggestion();
     }
 
     function onInput() {
@@ -262,7 +298,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const fullInput = currentActiveElement.value;
+            const fullInput = currentActiveElement.tagName === "TEXTAREA" ? currentActiveElement.value : currentActiveElement.innerText;
 
             if (fullInput.trim() === "" || fullInput === lastPrompt) {
                 hideSuggestion();
@@ -276,7 +312,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchSuggestion(prompt) {
         if (!currentActiveElement) {
-            console.error("fetchSuggestion: currentActiveElement is null at the start, cannot fetch.");
             hideSuggestion();
             return;
         }
@@ -298,15 +333,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const { snippet, fullCode: full } = await res.json();
 
             if (!currentActiveElement) {
-                console.warn("currentActiveElement became null after fetch, discarding suggestion.");
                 hideSuggestion();
                 return;
             }
 
-            const currentInputContent = currentActiveElement.value;
+            const currentInputContent = currentActiveElement.tagName === "TEXTAREA" ? currentActiveElement.value : currentActiveElement.innerText;
             if (currentInputContent === prompt) {
                 if (snippet && full) {
                     fullCode = full;
+                    currentSnippet = snippet;
                     showSuggestion(snippet);
                 } else {
                     hideSuggestion();
@@ -327,10 +362,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!currentActiveElement) return;
 
-        if (e.key === "Tab") {
+        if (e.key === "Tab" || e.keyCode === 9) {
             e.preventDefault();
-
-            if (e.shiftKey) {
+            if (currentSnippet && fullCode) {
+                acceptSuggestion();
+            } else if (e.shiftKey) {
                 const lines = value.substring(0, start).split('\n');
                 const currentLineIndex = lines.length - 1;
                 const currentLineStart = start - lines[currentLineIndex].length;
@@ -350,12 +386,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     deIndentedValue = value.substring(0, start) + newSelectedLines.join('\n') + value.substring(end);
                     newCursorPosition = start;
-                    for (let i = 0; i < selectedLines.length; i++) {
-                        if (selectedLines[i].startsWith(' '.repeat(TAB_SIZE))) {
-                            newCursorPosition -= TAB_SIZE;
-                        }
-                    }
-                    newCursorPosition = Math.max(start - (selectedText.length - newSelectedLines.join('\n').length), 0);
+                    const removedLength = selectedText.length - newSelectedLines.join('\n').length;
+                    this.value = deIndentedValue;
+                    this.selectionStart = start;
+                    this.selectionEnd = end - removedLength;
+
                 } else {
                     if (line.startsWith(' '.repeat(TAB_SIZE))) {
                         deIndentedValue = value.substring(0, currentLineStart) + line.substring(TAB_SIZE) + value.substring(start);
@@ -365,17 +400,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.value = deIndentedValue;
                 this.selectionStart = this.selectionEnd = newCursorPosition;
 
-            } else if (currentSnippet && fullCode) {
-                const originalScrollTop = this.scrollTop;
-                const originalScrollLeft = this.scrollLeft;
-
-                this.value = fullCode;
-                this.selectionStart = this.selectionEnd = fullCode.length;
-
-                this.scrollTop = originalScrollTop;
-                this.scrollLeft = originalScrollLeft;
-
-                hideSuggestion();
             } else {
                 const indentation = ' '.repeat(TAB_SIZE);
                 this.value = value.substring(0, start) + indentation + value.substring(end);
@@ -384,23 +408,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (e.key === "ArrowRight" && currentSnippet) {
-            const currentText = currentActiveElement.value;
-            const cursorPosition = currentActiveElement.selectionStart;
-
-            if (cursorPosition === currentText.length) {
-                e.preventDefault();
-                const originalScrollTop = this.scrollTop;
-                const originalScrollLeft = this.scrollLeft;
-
-                this.value = fullCode;
-                this.selectionStart = this.selectionEnd = fullCode.length;
-
-                this.scrollTop = originalScrollTop;
-                this.scrollLeft = originalScrollLeft;
-
-                hideSuggestion();
-            }
+        if (e.key === "ArrowRight" && currentSnippet && currentActiveElement.selectionStart === currentActiveElement.value.length) {
+            e.preventDefault();
+            acceptSuggestion();
             return;
         }
 
@@ -409,7 +419,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        else if (e.key === 'Enter') {
+        else if (e.key === 'Enter' || e.keyCode === 13) {
             e.preventDefault();
 
             const lines = value.substring(0, start).split('\n');
@@ -421,7 +431,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const textBeforeCursorOnLine = currentLine.substring(0, start - (value.lastIndexOf('\n', start - 1) + 1));
             if (lastChar === '>' && textBeforeCursorOnLine.trim().endsWith('>')) {
-                leadingSpaces += TAB_SIZE;
+                 leadingSpaces += TAB_SIZE;
             } else if (lastChar === '{' || lastChar === '(' || lastChar === '[' || lastChar === ':') {
                 leadingSpaces += TAB_SIZE;
             }
@@ -473,5 +483,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (textarea) {
         currentActiveElement = textarea;
         setupElementListeners(textarea);
+        onInput();
     }
 });
