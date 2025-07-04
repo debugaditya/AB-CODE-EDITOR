@@ -375,12 +375,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (e.key === "ArrowRight" && currentSnippet && currentActiveElement.selectionStart === currentActiveElement.value.length) {
-            e.preventDefault();
-            acceptSuggestion();
-            return;
-        }
-
         if (e.key === "Escape") {
             hideSuggestion();
             return;
