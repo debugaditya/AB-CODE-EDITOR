@@ -29,13 +29,40 @@ document.addEventListener('DOMContentLoaded', () => {
         return match ? match[0].length : 0;
     };
 
-    dropBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
+    function formatHtml(htmlString) {
+        let indentLevel = 0;
+        let formattedHtml = [];
+        const lines = htmlString.split('\n');
+        const indentStep = ' '.repeat(TAB_SIZE);
+
+        lines.forEach(line => {
+            const trimmedLine = line.trim();
+            if (trimmedLine.length === 0) {
+                formattedHtml.push('');
+                return;
+            }
+
+            if (trimmedLine.match(/^\s*<\//) || trimmedLine.startsWith('')) {
+                indentLevel = Math.max(0, indentLevel - 1);
+            }
+
+            formattedHtml.push(indentStep.repeat(indentLevel) + trimmedLine);
+
+            if (trimmedLine.match(/<[a-zA-Z0-9]+[^>]*[^/]>$/) &&
+                !trimmedLine.match(/<\/(?!svg|path|g|circle|rect|line|polygon|polyline|ellipse|text|image|foreignObject|use|defs|clipPath|mask|pattern|symbol|marker|view|style|script|title|desc|metadata|filter|feBlend|feColorMatrix|feComponentTransfer|feComposite|feConvolveMatrix|feDiffuseLighting|feDisplacementMap|feFlood|feGaussianBlur|feImage|feMerge|feMorphology|feOffset|feSpecularLighting|feTile|feTurbulence|linearGradient|radialGradient|stop|animate|animateMotion|animateTransform|set|mpath|altGlyph|color-profile|cursor|font|font-face|font-face-format|font-face-name|font-face-src|font-face-uri|hkern|vkern|missing-glyph|tref|altGlyphDef|altGlyphItem|glyph|glyphRef|textPath|tspan|view|a)\s*$/) &&
+                !trimmedLine.endsWith('/>')) {
+                indentLevel++;
+            }
+        });
+        return formattedHtml.join('\n');
+    }
+
+    dropBtn.addEventListener('click', () => {
         menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
     });
 
     window.addEventListener('click', (e) => {
-        if (!dropBtn.contains(e.target) && !menu.contains(e.target)) {
+        if (!dropdown.contains(e.target) && !dropBtn.contains(e.target)) {
             menu.style.display = 'none';
         }
     });
@@ -53,6 +80,10 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const res = await fetch(fileName);
                 let code = await res.text();
+                // This line was intentionally kept as per your clarification
+                // if (id === 'html') {
+                //    code = formatHtml(code);
+                // }
                 textarea.value = code;
                 onInput();
             } catch (err) {
@@ -137,12 +168,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!ghostSpan) {
             ghostSpan = document.createElement('span');
-            ghostSpan.className = 'ghost-suggestion';
+            ghostSpan.style.position = "absolute";
+            ghostSpan.style.opacity = "0.4";
+            ghostSpan.style.pointerEvents = "none";
+            ghostSpan.style.color = "#999";
+            ghostSpan.style.fontFamily = "monospace";
+            ghostSpan.style.fontSize = "1em";
+            ghostSpan.style.lineHeight = "normal";
+            ghostSpan.style.whiteSpace = "pre-wrap";
+            ghostSpan.style.wordBreak = "break-word";
+            ghostSpan.style.zIndex = "9999";
+            ghostSpan.style.background = "transparent";
+            ghostSpan.style.border = "none";
             document.body.appendChild(ghostSpan);
         }
     }
 
     function showSuggestion(snippet) {
+        hideSuggestion();
         if (!currentActiveElement || !ghostSpan || !snippet) {
             hideSuggestion();
             return;
@@ -172,6 +215,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const paddingTop = parseFloat(textareaStyle.paddingTop);
         const paddingLeft = parseFloat(textareaStyle.paddingLeft);
+        const borderTopWidth = parseFloat(textareaStyle.borderTopWidth);
+        const borderLeftWidth = parseFloat(textareaStyle.borderLeftWidth);
         const lineHeight = parseFloat(textareaStyle.lineHeight);
         const fontSize = parseFloat(textareaStyle.fontSize);
 
@@ -186,30 +231,35 @@ document.addEventListener('DOMContentLoaded', () => {
         const tempMeasurer = document.createElement('span');
         tempMeasurer.style.position = 'absolute';
         tempMeasurer.style.visibility = 'hidden';
+        tempMeasurer.style.whiteSpace = 'pre';
         tempMeasurer.style.fontFamily = textareaStyle.fontFamily;
         tempMeasurer.style.fontSize = textareaStyle.fontSize;
         tempMeasurer.style.lineHeight = textareaStyle.lineHeight;
-        tempMeasurer.style.whiteSpace = 'pre';
+        tempMeasurer.style.tabSize = textareaStyle.tabSize;
+        tempMeasurer.style.MozTabSize = textareaStyle.MozTabSize;
         document.body.appendChild(tempMeasurer);
 
         tempMeasurer.textContent = linesBeforeCursor[currentLineNumber];
         const textWidthBeforeCursor = tempMeasurer.offsetWidth;
         document.body.removeChild(tempMeasurer);
 
-        const top = textareaRect.top + paddingTop + (currentLineNumber * actualLineHeight) - currentActiveElement.scrollTop + window.scrollY;
+        const top = textareaRect.top + paddingTop + borderTopWidth + (currentLineNumber * actualLineHeight) - currentActiveElement.scrollTop + window.scrollY;
 
-        const left = textareaRect.left + paddingLeft + textWidthBeforeCursor - currentActiveElement.scrollLeft + window.scrollX;
+        const left = textareaRect.left + paddingLeft + borderLeftWidth + textWidthBeforeCursor - currentActiveElement.scrollLeft + window.scrollX;
 
         ghostSpan.style.top = `${top}px`;
         ghostSpan.style.left = `${left}px`;
-        ghostSpan.style.maxWidth = `${textareaRect.width - (left - textareaRect.left) - paddingLeft}px`;
+
+        ghostSpan.style.maxWidth = `${textareaRect.width - (left - textareaRect.left) - paddingLeft - parseFloat(textareaStyle.paddingRight) - parseFloat(textareaStyle.borderRightWidth)}px`;
         ghostSpan.style.minWidth = '0px';
         ghostSpan.style.minHeight = '0px';
+
         ghostSpan.style.whiteSpace = "pre-wrap";
         ghostSpan.style.wordBreak = "break-word";
         ghostSpan.style.fontFamily = textareaStyle.fontFamily;
         ghostSpan.style.fontSize = textareaStyle.fontSize;
         ghostSpan.style.lineHeight = textareaStyle.lineHeight;
+
         ghostSpan.style.padding = '0';
         ghostSpan.style.border = 'none';
         ghostSpan.style.background = 'transparent';
@@ -251,6 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const fullInput = currentActiveElement.tagName === "TEXTAREA" ? currentActiveElement.value : currentActiveElement.innerText;
 
             if (fullInput.trim() === "" || fullInput === lastPrompt) {
+                hideSuggestion();
                 return;
             }
 
@@ -266,10 +317,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
+            const selectedLanguage = dropBtn.textContent;
+
             const res = await fetch("/ask", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ data: prompt })
+                body: JSON.stringify({ data: prompt, lang: selectedLanguage })
             });
 
             if (!res.ok) {
@@ -288,6 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentInputContent === prompt) {
                 if (snippet && full) {
                     fullCode = full;
+                    currentSnippet = snippet;
                     showSuggestion(snippet);
                 } else {
                     hideSuggestion();
@@ -308,10 +362,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!currentActiveElement) return;
 
-        if (e.key === "Tab") {
+        if (e.key === "Tab" || e.keyCode === 9) {
             e.preventDefault();
-
-            if (e.shiftKey) {
+            if (currentSnippet && fullCode) {
+                acceptSuggestion(); // Accept suggestion if available
+            } else if (e.shiftKey) {
+                // De-indentation logic
                 const lines = value.substring(0, start).split('\n');
                 const currentLineIndex = lines.length - 1;
                 const currentLineStart = start - lines[currentLineIndex].length;
@@ -330,13 +386,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         return line;
                     });
                     deIndentedValue = value.substring(0, start) + newSelectedLines.join('\n') + value.substring(end);
-                    newCursorPosition = start;
-                    for (let i = 0; i < selectedLines.length; i++) {
-                        if (selectedLines[i].startsWith(' '.repeat(TAB_SIZE))) {
-                            newCursorPosition -= TAB_SIZE;
-                        }
-                    }
-                    newCursorPosition = Math.max(start - (selectedText.length - newSelectedLines.join('\n').length), 0);
+                    const removedLength = selectedText.length - newSelectedLines.join('\n').length;
+                    this.value = deIndentedValue;
+                    this.selectionStart = start;
+                    this.selectionEnd = end - removedLength;
                 } else {
                     if (line.startsWith(' '.repeat(TAB_SIZE))) {
                         deIndentedValue = value.substring(0, currentLineStart) + line.substring(TAB_SIZE) + value.substring(start);
@@ -345,19 +398,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 this.value = deIndentedValue;
                 this.selectionStart = this.selectionEnd = newCursorPosition;
-
-            } else if (currentSnippet && fullCode) {
-                const originalScrollTop = this.scrollTop;
-                const originalScrollLeft = this.scrollLeft;
-
-                this.value = fullCode;
-                this.selectionStart = this.selectionEnd = fullCode.length;
-
-                this.scrollTop = originalScrollTop;
-                this.scrollLeft = originalScrollLeft;
-
-                hideSuggestion();
             } else {
+                // Indentation logic
                 const indentation = ' '.repeat(TAB_SIZE);
                 this.value = value.substring(0, start) + indentation + value.substring(end);
                 this.selectionStart = this.selectionEnd = start + TAB_SIZE;
@@ -365,23 +407,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (e.key === "ArrowRight" && currentSnippet) {
-            const currentText = currentActiveElement.tagName === "TEXTAREA" ? currentActiveElement.value : currentActiveElement.innerText;
-            const cursorPosition = currentActiveElement.selectionStart;
-
-            if (cursorPosition === currentText.length) {
-                e.preventDefault();
-                const originalScrollTop = this.scrollTop;
-                const originalScrollLeft = this.scrollLeft;
-
-                this.value = fullCode;
-                this.selectionStart = this.selectionEnd = fullCode.length;
-
-                this.scrollTop = originalScrollTop;
-                this.scrollLeft = originalScrollLeft;
-
-                hideSuggestion();
-            }
+        if (e.key === "ArrowRight" && currentSnippet && currentActiveElement.selectionStart === currentActiveElement.value.length) {
+            e.preventDefault();
+            acceptSuggestion();
             return;
         }
 
@@ -390,7 +418,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        else if (e.key === 'Enter') {
+        else if (e.key === 'Enter' || e.keyCode === 13) {
             e.preventDefault();
 
             const lines = value.substring(0, start).split('\n');
@@ -454,5 +482,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (textarea) {
         currentActiveElement = textarea;
         setupElementListeners(textarea);
+        onInput();
     }
 });
