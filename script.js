@@ -301,16 +301,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const value = this.value;
         if (!currentActiveElement) return;
         if (e.key === "Tab" || e.keyCode === 9) {
-            e.preventDefault();
-            if (currentSnippet && fullCode) {
-                acceptSuggestion();
-            } else {
-                const indentation = ' '.repeat(TAB_SIZE);
-                this.value = value.substring(0, start) + indentation + value.substring(end);
-                this.selectionStart = this.selectionEnd = start + TAB_SIZE;
-            }
-            return;
-        }
+    e.preventDefault();
+    console.log("Tab pressed — currentSnippet:", currentSnippet, "fullCode:", fullCode);
+
+    if (currentSnippet?.trim() && fullCode?.trim()) {
+        acceptSuggestion();
+    } else {
+        const indentation = ' '.repeat(TAB_SIZE);
+        this.value = this.value.substring(0, start) + indentation + this.value.substring(end);
+        this.selectionStart = this.selectionEnd = start + TAB_SIZE;
+    }
+    return;
+}
         if (e.key === "Escape") {
             hideSuggestion();
             return;
