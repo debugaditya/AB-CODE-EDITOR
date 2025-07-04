@@ -29,12 +29,13 @@ document.addEventListener('DOMContentLoaded', () => {
         return match ? match[0].length : 0;
     };
 
-    dropBtn.addEventListener('click', () => {
+    dropBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
         menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
     });
 
     window.addEventListener('click', (e) => {
-        if (!dropdown.contains(e.target) && !dropBtn.contains(e.target)) {
+        if (!dropBtn.contains(e.target) && !menu.contains(e.target)) {
             menu.style.display = 'none';
         }
     });
@@ -136,24 +137,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!ghostSpan) {
             ghostSpan = document.createElement('span');
-            ghostSpan.style.position = "absolute";
-            ghostSpan.style.opacity = "0.4";
-            ghostSpan.style.pointerEvents = "none";
-            ghostSpan.style.color = "#999";
-            ghostSpan.style.fontFamily = "monospace";
-            ghostSpan.style.fontSize = "1em";
-            ghostSpan.style.lineHeight = "normal";
-            ghostSpan.style.whiteSpace = "pre-wrap";
-            ghostSpan.style.wordBreak = "break-word";
-            ghostSpan.style.zIndex = "9999";
-            ghostSpan.style.background = "transparent";
-            ghostSpan.style.border = "none";
+            ghostSpan.className = 'ghost-suggestion';
             document.body.appendChild(ghostSpan);
         }
     }
 
     function showSuggestion(snippet) {
-        hideSuggestion();
         if (!currentActiveElement || !ghostSpan || !snippet) {
             hideSuggestion();
             return;
@@ -183,8 +172,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const paddingTop = parseFloat(textareaStyle.paddingTop);
         const paddingLeft = parseFloat(textareaStyle.paddingLeft);
-        const borderTopWidth = parseFloat(textareaStyle.borderTopWidth);
-        const borderLeftWidth = parseFloat(textareaStyle.borderLeftWidth);
         const lineHeight = parseFloat(textareaStyle.lineHeight);
         const fontSize = parseFloat(textareaStyle.fontSize);
 
@@ -199,35 +186,30 @@ document.addEventListener('DOMContentLoaded', () => {
         const tempMeasurer = document.createElement('span');
         tempMeasurer.style.position = 'absolute';
         tempMeasurer.style.visibility = 'hidden';
-        tempMeasurer.style.whiteSpace = 'pre';
         tempMeasurer.style.fontFamily = textareaStyle.fontFamily;
         tempMeasurer.style.fontSize = textareaStyle.fontSize;
         tempMeasurer.style.lineHeight = textareaStyle.lineHeight;
-        tempMeasurer.style.tabSize = textareaStyle.tabSize;
-        tempMeasurer.style.MozTabSize = textareaStyle.MozTabSize;
+        tempMeasurer.style.whiteSpace = 'pre';
         document.body.appendChild(tempMeasurer);
 
         tempMeasurer.textContent = linesBeforeCursor[currentLineNumber];
         const textWidthBeforeCursor = tempMeasurer.offsetWidth;
         document.body.removeChild(tempMeasurer);
 
-        const top = textareaRect.top + paddingTop + borderTopWidth + (currentLineNumber * actualLineHeight) - currentActiveElement.scrollTop + window.scrollY;
+        const top = textareaRect.top + paddingTop + (currentLineNumber * actualLineHeight) - currentActiveElement.scrollTop + window.scrollY;
 
-        const left = textareaRect.left + paddingLeft + borderLeftWidth + textWidthBeforeCursor - currentActiveElement.scrollLeft + window.scrollX;
+        const left = textareaRect.left + paddingLeft + textWidthBeforeCursor - currentActiveElement.scrollLeft + window.scrollX;
 
         ghostSpan.style.top = `${top}px`;
         ghostSpan.style.left = `${left}px`;
-
-        ghostSpan.style.maxWidth = `${textareaRect.width - (left - textareaRect.left) - paddingLeft - parseFloat(textareaStyle.paddingRight) - parseFloat(textareaStyle.borderRightWidth)}px`;
+        ghostSpan.style.maxWidth = `${textareaRect.width - (left - textareaRect.left) - paddingLeft}px`;
         ghostSpan.style.minWidth = '0px';
         ghostSpan.style.minHeight = '0px';
-
         ghostSpan.style.whiteSpace = "pre-wrap";
         ghostSpan.style.wordBreak = "break-word";
         ghostSpan.style.fontFamily = textareaStyle.fontFamily;
         ghostSpan.style.fontSize = textareaStyle.fontSize;
         ghostSpan.style.lineHeight = textareaStyle.lineHeight;
-
         ghostSpan.style.padding = '0';
         ghostSpan.style.border = 'none';
         ghostSpan.style.background = 'transparent';
@@ -269,7 +251,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const fullInput = currentActiveElement.tagName === "TEXTAREA" ? currentActiveElement.value : currentActiveElement.innerText;
 
             if (fullInput.trim() === "" || fullInput === lastPrompt) {
-                hideSuggestion();
                 return;
             }
 
@@ -285,12 +266,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const selectedLanguage = dropBtn.textContent;
-
             const res = await fetch("/ask", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ data: prompt, lang: selectedLanguage })
+                body: JSON.stringify({ data: prompt })
             });
 
             if (!res.ok) {
@@ -309,7 +288,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentInputContent === prompt) {
                 if (snippet && full) {
                     fullCode = full;
-                    currentSnippet = snippet;
                     showSuggestion(snippet);
                 } else {
                     hideSuggestion();
@@ -330,11 +308,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!currentActiveElement) return;
 
-        if (e.key === "Tab" || e.keyCode === 9) {
+        if (e.key === "Tab") {
             e.preventDefault();
-            if (currentSnippet && fullCode) {
-                acceptSuggestion();
-            } else if (e.shiftKey) {
+
+            if (e.shiftKey) {
                 const lines = value.substring(0, start).split('\n');
                 const currentLineIndex = lines.length - 1;
                 const currentLineStart = start - lines[currentLineIndex].length;
@@ -354,11 +331,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     deIndentedValue = value.substring(0, start) + newSelectedLines.join('\n') + value.substring(end);
                     newCursorPosition = start;
-                    const removedLength = selectedText.length - newSelectedLines.join('\n').length;
-                    this.value = deIndentedValue;
-                    this.selectionStart = start;
-                    this.selectionEnd = end - removedLength;
-
+                    for (let i = 0; i < selectedLines.length; i++) {
+                        if (selectedLines[i].startsWith(' '.repeat(TAB_SIZE))) {
+                            newCursorPosition -= TAB_SIZE;
+                        }
+                    }
+                    newCursorPosition = Math.max(start - (selectedText.length - newSelectedLines.join('\n').length), 0);
                 } else {
                     if (line.startsWith(' '.repeat(TAB_SIZE))) {
                         deIndentedValue = value.substring(0, currentLineStart) + line.substring(TAB_SIZE) + value.substring(start);
@@ -368,6 +346,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.value = deIndentedValue;
                 this.selectionStart = this.selectionEnd = newCursorPosition;
 
+            } else if (currentSnippet && fullCode) {
+                const originalScrollTop = this.scrollTop;
+                const originalScrollLeft = this.scrollLeft;
+
+                this.value = fullCode;
+                this.selectionStart = this.selectionEnd = fullCode.length;
+
+                this.scrollTop = originalScrollTop;
+                this.scrollLeft = originalScrollLeft;
+
+                hideSuggestion();
             } else {
                 const indentation = ' '.repeat(TAB_SIZE);
                 this.value = value.substring(0, start) + indentation + value.substring(end);
@@ -376,9 +365,23 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (e.key === "ArrowRight" && currentSnippet && currentActiveElement.selectionStart === currentActiveElement.value.length) {
-            e.preventDefault();
-            acceptSuggestion();
+        if (e.key === "ArrowRight" && currentSnippet) {
+            const currentText = currentActiveElement.tagName === "TEXTAREA" ? currentActiveElement.value : currentActiveElement.innerText;
+            const cursorPosition = currentActiveElement.selectionStart;
+
+            if (cursorPosition === currentText.length) {
+                e.preventDefault();
+                const originalScrollTop = this.scrollTop;
+                const originalScrollLeft = this.scrollLeft;
+
+                this.value = fullCode;
+                this.selectionStart = this.selectionEnd = fullCode.length;
+
+                this.scrollTop = originalScrollTop;
+                this.scrollLeft = originalScrollLeft;
+
+                hideSuggestion();
+            }
             return;
         }
 
@@ -387,7 +390,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        else if (e.key === 'Enter' || e.keyCode === 13) {
+        else if (e.key === 'Enter') {
             e.preventDefault();
 
             const lines = value.substring(0, start).split('\n');
@@ -451,6 +454,5 @@ document.addEventListener('DOMContentLoaded', () => {
     if (textarea) {
         currentActiveElement = textarea;
         setupElementListeners(textarea);
-        onInput();
     }
 });
